@@ -1291,7 +1291,7 @@ ActivityProgress{activityId,studentId,status,bestScore,attempts,lastActivityAt}
 `skillId` resolves, every `TestCase` has an expected output, no orphan activities).
 **Commit:** `feat(services): add execution, repository, mastery, and session layers`
 
-### Phase 3 — Teacher classroom screen (§16) `[ ]`
+### Phase 3 — Teacher classroom screen (§16) `[x]`
 
 **Goal:** the product's most important single screen.
 
@@ -1448,7 +1448,7 @@ describing work that was not done, or omitting work that was.
 |---|---|---|---|
 | 1 | Domain model + seed | `[x]` | `8b7620d` |
 | 2 | Services | `[x]` | `d0f8815` |
-| 3 | Teacher classroom (§16) | `[ ]` | — |
+| 3 | Teacher classroom (§16) | `[x]` | — |
 | 4 | Teacher loop | `[ ]` | — |
 | 5 | Student loop | `[ ]` | — |
 | 6 | Student dashboard | `[ ]` | — |
@@ -1621,3 +1621,88 @@ Vitest.
 `ClassroomScreen`, `CohortSplit`, `MisconceptionPanel`, `AsyncBoundary`, the
 `/teacher` route, the `/admin` redirect, and the role switch in the Navbar. All of
 it reads the Phase 2 derived functions, so no numbers are written down.
+
+### Phase 3 — Teacher classroom screen (§16)
+
+**Shipped**
+
+- `src/components/teacher/TeacherLayout.tsx` — the §9 destination list, with only
+  the built sections as links and the rest as muted `soon` text. The rail becomes a
+  horizontal scroller under `lg`.
+- `src/components/teacher/ClassroomScreen.tsx` — the screen, in §16 order: cohort
+  split, current activity, common issue, then the roster. Loads through the Phase 2
+  repositories inside one `AsyncBoundary`.
+- `src/components/teacher/CohortSplit.tsx` — 29 completed · 8 struggling · 5 not
+  started, plus a proportional bar of the same numbers.
+- `src/components/teacher/ActivityCompletionCard.tsx` — kind, estimate, objective,
+  completion, and the activity's test cases when it has any.
+- `src/components/teacher/MisconceptionPanel.tsx` — the headline issue with its
+  remediation hint and recommended activity, the runner-up issues, and the three
+  §16 actions.
+- `src/components/teacher/classroomViewModel.ts` — `buildClassroom` (pure, injected
+  `now`, throws rather than rendering a focus activity it cannot resolve),
+  `relativeTime`, `segmentLabel`, `strugglingRows`.
+- `src/components/teacher/AdminRedirect.tsx` — `/admin` → `/teacher`.
+- `src/components/ui/AsyncBoundary.tsx` — `useAsync` plus loading / error / empty /
+  ready, satisfying §28 once for every later screen.
+- `src/components/admin/toStudentRow.ts` — the admin adapter (see decisions).
+- `src/components/layout/Navbar.tsx` — the role switch, and `Monitor` → `Classroom`
+  in the app links.
+- `src/data/seed/attempts.ts` — rebalanced, see decisions.
+
+**Decisions taken while building**
+
+- **One definition of "struggling", in `mastery.ts`.** `cohortSegmentForStudent` is
+  now the single rule — tried the focus activity, not passed it yet — and both
+  `classProgressSummary` and the roster label use it. The first implementation had
+  `studentEngagement` bucket students by overall pass rate *and* the panel count by
+  focus activity, which produced two different answers on one screen: adding a
+  passing lab attempt moved a student out of `struggling`, so the "Struggling"
+  filter and the `8` in the split chart could disagree, and in practice the filter
+  was always empty. The roster still shows pass rate, but as its own column.
+- **The `/admin` adapter takes a `StudentRow`, not a `StudentEngagement`,** for the
+  same reason — otherwise the admin screen would classify students a second time.
+  It also reports per-student `progress` as 0/100 rather than the class completion
+  rate, which was meaningless as an individual's score. It lives in
+  `components/admin/` because that is the shape it feeds, and it is the only new
+  file under `admin/`; the components themselves are untouched.
+- **Two of the three §16 actions ship disabled, with a stated reason.** `Open
+  activity` has nowhere to go yet (`/module/:id` resolves legacy numeric module ids
+  only, so navigating there with an activity id would crash) and `Explain to class`
+  needs the feedback loop from Phase 4. Both render, both say why in `title` and
+  `aria-label`, and both are one callback away from working. A silently dead button
+  would have been the alternative.
+- **The seed was rebalanced 408 → 423 attempts.** The Phase 2 numbers no longer
+  produced the plan's headline: `assignment-in-condition` was not the top issue,
+  because a program's best score was the only ordering signal and the boundary lab
+  scored higher. Adding one failing code-lab attempt for the 8 focus-failing
+  students fixed the ranking honestly — it is the code that carries the evidence.
+  Multiple-choice attempts no longer receive inferred tags, and the newest attempts
+  now fall inside 24 hours so the header reports real activity instead of `0`.
+- **The rail lists the §9 destinations as muted text rather than dead links,** so a
+  visitor can see what is planned without the prototype looking broken. The panel
+  footer says so in as many words.
+
+**Verification**
+
+- `npx tsc -b --force` clean; `npm run build` passes.
+- `npm test` — **145 passed, 0 failed** (7 files). The 29 new tests cover
+  `buildClassroom` (split arithmetic, focus resolution, roster membership, ranking,
+  remediation hints, empty-input behaviour, determinism), `relativeTime`,
+  `strugglingRows`, and the admin adapter.
+- Browser-checked with Playwright at 1440px and 390px: `/`, `/dashboard`,
+  `/module/1`, `/challenges`, `/challenge/1`, `/teacher` and `/admin` all render
+  with no console or page errors and no horizontal overflow. `/admin` lands on
+  `/teacher`; the role switch moves to `/dashboard` when set to student.
+- **Bug found by the browser check, not by review:** at 390px the page scrolled
+  sideways to 652px. The runner-up issue list's `truncate` text is `nowrap`, and
+  grid items default to `min-width: auto`, so one such row stretched the grid track
+  and every panel in it. Fixed with `[&>*]:min-w-0` on the two grids — the panels
+  now shrink and the list truncates. No test would have caught this; it needed a
+  real viewport.
+- The screen shows `42` enrolled, `29 / 8 / 5`, `69%` completion, `28` submissions
+  in the last 24 hours, and `assignment-in-condition` (18 students) as the headline
+  — all derived at runtime from the attempt records.
+
+**Next — Phase 4:** the teacher loop — courses, the Content Studio, assignments,
+submission review, and the gradebook.

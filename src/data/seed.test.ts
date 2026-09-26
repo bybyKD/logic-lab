@@ -11,7 +11,12 @@ import {
 } from './seed/attempts'
 import { listSectionActivities, listSkillWithDescendants } from './selectors'
 import type { Activity, Skill } from '../domain'
-import { buildActivitySkillMap, classProgressSummary } from '../services/learning/mastery'
+import {
+  aggregateMisconceptions,
+  buildActivitySkillMap,
+  classProgressSummary,
+} from '../services/learning/mastery'
+import { MISCONCEPTIONS } from '../services/learning/misconceptions'
 
 const NOW = Date.parse('2026-03-16T09:00:00.000Z')
 
@@ -158,6 +163,23 @@ describe('seed: learning history', () => {
       expect(attempt.score).toBeGreaterThanOrEqual(0)
       expect(attempt.score).toBeLessThanOrEqual(100)
     }
+  })
+
+  it('tags a misconception only where the submitted code proves it', () => {
+    // A tag on a multiple-choice attempt would be a guess about why someone picked
+    // a distractor. Only code-bearing attempts can carry a provable cause, so the
+    // classroom panel's claims are traceable to something real.
+    for (const attempt of buildSeedAttempts(NOW)) {
+      if (attempt.misconceptionId) {
+        expect(attempt.code, `${attempt.id} tagged without code`).toBeTruthy()
+      }
+    }
+  })
+
+  it('makes the lab the headline common issue, not a guess', () => {
+    const tallies = aggregateMisconceptions(buildSeedAttempts(NOW), MISCONCEPTIONS)
+    expect(tallies[0].id).toBe('assignment-in-condition')
+    expect(tallies[0].studentCount).toBeGreaterThan(10)
   })
 
   it('derives the cohort split from the records rather than asserting it', () => {

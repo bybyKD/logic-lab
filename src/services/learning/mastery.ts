@@ -278,6 +278,26 @@ export interface ClassProgressSummary {
 }
 
 /**
+ * One student's segment against a specific activity.
+ *
+ * This is the single definition of "struggling" in the product: tried this
+ * activity, not passed it yet. `classProgressSummary` counts with it and the
+ * teacher roster labels with it, so the panel above the table and the table
+ * itself can never disagree about who is struggling.
+ */
+export function cohortSegmentForStudent(
+  attempts: Attempt[],
+  studentId: string,
+  activityId: string,
+): CohortSegment {
+  const own = attempts.filter((a) => a.studentId === studentId)
+  if (own.length === 0) return 'not-started'
+  const onActivity = own.filter((a) => a.activityId === activityId)
+  if (onActivity.length === 0) return 'in-progress'
+  return onActivity.some((a) => a.passed) ? 'completed' : 'struggling'
+}
+
+/**
  * Engagement split for a class, measured against the activity the class is
  * currently working on.
  *
@@ -291,10 +311,6 @@ export function classProgressSummary(
   focusActivityId: string,
 ): ClassProgressSummary {
   const enrolled = enrollments.length
-  let completed = 0
-  let struggling = 0
-  let inProgress = 0
-  let notStarted = 0
   let totalAttempts = 0
 
   const studentIds = new Set(enrollments.map((e) => e.studentId))
@@ -306,18 +322,26 @@ export function classProgressSummary(
     attemptsByStudent.set(attempt.studentId, list)
   }
 
+  let completed = 0
+  let struggling = 0
+  let inProgress = 0
+  let notStarted = 0
   for (const studentId of studentIds) {
     const own = attemptsByStudent.get(studentId) ?? []
     totalAttempts += own.length
-    const onFocus = own.filter((a) => a.activityId === focusActivityId)
-
-    if (onFocus.length > 0) {
-      if (onFocus.some((a) => a.passed)) completed += 1
-      else struggling += 1
-    } else if (own.length > 0) {
-      inProgress += 1
-    } else {
-      notStarted += 1
+    switch (cohortSegmentForStudent(own, studentId, focusActivityId)) {
+      case 'completed':
+        completed += 1
+        break
+      case 'struggling':
+        struggling += 1
+        break
+      case 'in-progress':
+        inProgress += 1
+        break
+      case 'not-started':
+        notStarted += 1
+        break
     }
   }
 

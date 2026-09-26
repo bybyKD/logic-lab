@@ -122,10 +122,13 @@ export function buildSeedAttempts(now: number): Attempt[] {
   // attempts at all, which is what puts them in the not-started bucket.
 
   // ---- Students who have started: history through the early sections ----
+  // These are multiple-choice challenges: no code, so no misconception is tagged.
+  // Naming a cause we cannot see in the submission would be a guess, and the
+  // classroom panel is only worth building if its claims are evidence-backed.
   const startedIds = [...completedIds, ...strugglingIds]
   startedIds.forEach((studentId, i) => {
     earlyChallenges.forEach((challenge, k) => {
-      // A minority of students are genuinely shaky on comparison operators.
+      // A minority of students are genuinely shaky and get some wrong.
       const weak = i % 7 === 3
       const failedOnce = weak && k % 2 === 1
       seeds.push({
@@ -135,22 +138,32 @@ export function buildSeedAttempts(now: number): Attempt[] {
         score: failedOnce ? 40 : 100,
         daysAgo: 21 - k * 2,
         hintsUsed: failedOnce ? 1 : 0,
-        choiceId: challenge.correctChoiceId,
-        misconceptionId: failedOnce ? 'strict-boundary' : undefined,
+        choiceId: failedOnce
+          ? pick(
+              random,
+              challenge.choices
+                .filter((c) => c.id !== challenge.correctChoiceId)
+                .map((c) => c.id),
+            )
+          : challenge.correctChoiceId,
       })
     })
   })
 
-  // ---- Code lab: a real spread of correct and subtly wrong solutions ----
-  // The `=` mistake passes the visible test, which is the whole reason the
-  // classroom flags misconceptions on passing submissions too.
-  const labStudents = [...completedIds.slice(0, 16), ...strugglingIds.slice(0, 6)]
+  // ---- Code lab: where the class's real mistakes are visible ----
+  // Every student who has started has attempted it, and it is the only place a
+  // misconception is *provable*: the source is right here. The `=` variant even
+  // passes the visible test, which is exactly why the classroom reports
+  // misconceptions on passing submissions as well as failing ones.
+  const labStudents = [...completedIds, ...strugglingIds]
   labStudents.forEach((studentId, i) => {
+    // Weighted so the assignment slip is the plurality: it is the mistake this
+    // lab exists to surface, and §16's headline "common issue".
     const variant = i % 4
     const code =
       variant === 0
         ? CORRECT_AGE_CODE
-        : variant === 1
+        : variant === 1 || variant === 3
           ? ASSIGNMENT_AGE_CODE
           : BOUNDARY_AGE_CODE
 
@@ -159,23 +172,25 @@ export function buildSeedAttempts(now: number): Attempt[] {
       activity: codeLab,
       passed: true,
       score: variant === 0 ? 100 : 70,
-      daysAgo: 4 - (i % 3),
-      hintsUsed: variant === 0 ? 0 : 1,
+        daysAgo: 1.5 + (i % 3) * 0.5,
+        hintsUsed: variant === 0 ? 0 : 1,
       code,
       language: 'python',
       misconceptionId:
-        variant === 1 ? 'assignment-in-condition' : variant === 2 ? 'strict-boundary' : undefined,
+        variant === 0 ? undefined : variant === 2 ? 'strict-boundary' : 'assignment-in-condition',
     })
   })
 
   // ---- Focus activity ----
+  // Recent, on purpose: the teacher header reports submissions in the last 24
+  // hours, and a class demo that reads "0" is not showing an active class.
   completedIds.forEach((studentId, i) => {
     seeds.push({
       studentId,
       activity: focus,
       passed: true,
       score: 100,
-      daysAgo: 3 - (i % 3),
+      daysAgo: 0.15 + (i % 3) * 0.3,
       hintsUsed: i % 6 === 0 ? 1 : 0,
       choiceId: focus.correctChoiceId,
     })
@@ -191,17 +206,17 @@ export function buildSeedAttempts(now: number): Attempt[] {
         activity: focus,
         passed: false,
         score: 30 + n * 10,
-        daysAgo: 3 - n,
+        daysAgo: 0.5 + n * 0.75,
         hintsUsed: last ? 1 : 0,
         choiceId: pick(random, wrongChoices),
-        // The answer they gave tells us what they believed, so the cause is known
-        // rather than guessed: answering "Dewasa" for age 17 is a boundary error.
-        misconceptionId: 'strict-boundary',
+        // Untagged: which distractor someone picked does not establish a cause.
       })
     }
   })
 
   // ---- A few students are already blocked on loops, further along ----
+  // Untagged for the same reason: a wrong distractor on a challenge is not proof
+  // of an off-by-one. The detector earns that tag in Phase 5, from real code.
   const loopStrugglers = completedIds.filter((_, i) => i % 9 === 4).slice(0, 5)
   const loopChallenges = challengesIn(['sec-05'])
   loopStrugglers.forEach((studentId, i) => {
@@ -217,7 +232,6 @@ export function buildSeedAttempts(now: number): Attempt[] {
         random,
         challenge.choices.filter((c) => c.id !== challenge.correctChoiceId).map((c) => c.id),
       ),
-      misconceptionId: 'off-by-one-range',
     })
   })
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '../../utils/cn'
 import { GlowButton } from '../ui/GlowButton'
+import { useSession } from '../../services/session/SessionProvider'
 
 interface NavbarProps {
   variant?: 'public' | 'app'
@@ -10,7 +11,7 @@ interface NavbarProps {
 const appLinks = [
   { to: '/dashboard', label: 'Learn' },
   { to: '/challenges', label: 'Challenges' },
-  { to: '/admin', label: 'Monitor' },
+  { to: '/teacher', label: 'Classroom' },
 ]
 
 const publicLinks = [
@@ -20,10 +21,71 @@ const publicLinks = [
   { href: '#about', label: 'About' },
 ]
 
+interface RoleSwitchProps {
+  role: 'student' | 'teacher'
+  name: string
+  initials: string
+  onChange: (role: 'student' | 'teacher') => void
+  /** Full-width layout for the mobile menu. */
+  block?: boolean
+}
+
+/**
+ * Stands in for authentication.
+ *
+ * Labelled as a role switch rather than a profile menu so it is obvious that
+ * choosing a role is how you see the other side of the product — and so nobody
+ * reads it as a working login that is merely unstyled.
+ */
+function RoleSwitch({ role, name, initials, onChange, block }: RoleSwitchProps) {
+  return (
+    <div
+      role="group"
+      aria-label="Acting as"
+      className={cn(
+        'flex items-center gap-1 rounded-pill border border-lab-700 bg-lab-900/60 p-1',
+        block && 'w-full justify-between',
+      )}
+    >
+      <span
+        className={cn(
+          'ml-1.5 grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-lab-800 font-mono text-[0.625rem] text-ink-300',
+          block && 'ml-0',
+        )}
+        aria-hidden
+      >
+        {initials}
+      </span>
+      <span className="sr-only">Acting as {name}</span>
+      {(['student', 'teacher'] as const).map((option) => {
+        const active = role === option
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            aria-pressed={active}
+            className={cn(
+              'rounded-pill px-2.5 py-1 font-mono text-[0.625rem] transition-colors',
+              active
+                ? 'bg-accent-400 text-lab-950'
+                : 'text-ink-500 hover:text-ink-200',
+            )}
+          >
+            {option}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function Navbar({ variant = 'public' }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { role, switchRole, student, teacher } = useSession()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
@@ -36,7 +98,26 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
     setMenuOpen(false)
   }, [pathname])
 
-  const isApp = variant === 'app' || pathname.startsWith('/dashboard') || pathname.startsWith('/module') || pathname.startsWith('/challenge')
+  const isApp =
+    variant === 'app' ||
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/module') ||
+    pathname.startsWith('/challenge') ||
+    pathname.startsWith('/teacher') ||
+    pathname.startsWith('/admin')
+
+  /**
+   * The prototype has no auth, so the switch *is* the login: it picks the acting
+   * role and moves to that role's home screen, which is the only way to see both
+   * halves of the product in one session.
+   */
+  const changeRole = (next: 'student' | 'teacher') => {
+    switchRole(next)
+    navigate(next === 'teacher' ? '/teacher' : '/dashboard')
+  }
+
+  const actingAs = role === 'teacher' ? teacher?.name : student?.name
+  const actingInitials = (actingAs ?? '?').charAt(0).toUpperCase()
 
   return (
     <header
@@ -102,20 +183,16 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
                 </svg>
                 Search
               </button>
-              <button
-                type="button"
-                aria-label="Profile"
-                className="grid h-8 w-8 place-items-center rounded-pill border border-lab-600 bg-lab-800 text-xs text-ink-300 transition-all hover:border-accent-400/60 hover:text-accent-300"
-              >
-                D
-              </button>
+              <RoleSwitch
+                role={role}
+                name={actingAs ?? 'Unknown'}
+                initials={actingInitials}
+                onChange={changeRole}
+              />
             </>
           ) : (
             <>
               <GlowButton href="/dashboard" variant="ghost" size="md">
-                Login
-              </GlowButton>
-              <GlowButton href="/dashboard" variant="primary" size="md">
                 Start Training
               </GlowButton>
             </>
@@ -158,9 +235,13 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
                   <button type="button" className="w-full rounded-pill border border-lab-700 py-2.5 text-sm text-ink-200">
                     Search
                   </button>
-                  <Link to="/dashboard" className="w-full rounded-pill border border-lab-700 py-2.5 text-center text-sm text-ink-200">
-                    Profile
-                  </Link>
+                  <RoleSwitch
+                    role={role}
+                    name={actingAs ?? 'Unknown'}
+                    initials={actingInitials}
+                    onChange={changeRole}
+                    block
+                  />
                 </>
               ) : (
                 <>

@@ -4,7 +4,8 @@ import { DashboardPage } from './pages/DashboardPage'
 import { ModulePage } from './pages/ModulePage'
 import { ChallengePage } from './pages/ChallengePage'
 import { ChallengesIndexPage } from './pages/ChallengesIndexPage'
-import { AdminPage } from './pages/AdminPage'
+import { ClassroomScreen } from './components/teacher/ClassroomScreen'
+import { AdminRedirect } from './components/teacher/AdminRedirect'
 import { AnimatedCursor } from './components/ui/AnimatedCursor'
 import { SessionProvider } from './services/session/SessionProvider'
 
@@ -19,7 +20,8 @@ export default function App() {
           <Route path="/module/:id" element={<ModulePage />} />
           <Route path="/challenge/:id" element={<ChallengePage />} />
           <Route path="/challenges" element={<ChallengesIndexPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/teacher" element={<ClassroomScreen />} />
+          <Route path="/admin" element={<AdminRedirect />} />
           <Route path="*" element={<LandingPage />} />
         </Routes>
       </SessionProvider>
