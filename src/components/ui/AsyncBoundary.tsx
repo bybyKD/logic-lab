@@ -12,7 +12,11 @@ import { cn } from '../../utils/cn'
 export type AsyncState<T> =
   | { status: 'loading' }
   | { status: 'ready'; data: T }
-  | { status: 'error' }
+  // The thrown value rides along so a screen can explain *why* something failed.
+  // Loaders in this codebase throw sentences written for people, and a guard like
+  // "that activity is not in this section" is far more use to a learner than a
+    // generic "could not load".
+  | { status: 'error'; error?: unknown }
 
 export type AsyncResult<T> = AsyncState<T> & { retry: () => void }
 
@@ -34,8 +38,8 @@ export function useAsync<T>(load: () => Promise<T>, deps: readonly unknown[]): A
       (data) => {
         if (alive) setState({ status: 'ready', data })
       },
-      () => {
-        if (alive) setState({ status: 'error' })
+      (error) => {
+        if (alive) setState({ status: 'error', error })
       },
     )
     return () => {

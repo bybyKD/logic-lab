@@ -141,6 +141,61 @@ describe('seed: course graph', () => {
       }
     }
   })
+
+  it('seeds the challenge variants the legacy data never had', () => {
+    // Phase 5's runner switches on `challengeType`, and all 30 legacy challenges
+    // are `choose` or `predict`. Without these two the `debug` and `algorithm`
+    // branches would be unreachable, and unreachable code rots.
+    const byType = (type: string) =>
+      ACTIVITIES.filter((a) => a.kind === 'challenge' && a.challengeType === type)
+
+    expect(byType('debug').length).toBeGreaterThan(0)
+    expect(byType('algorithm').length).toBeGreaterThan(0)
+  })
+
+  it('keeps a debug challenge’s faulty line and its answer choice in agreement', () => {
+    // The runner marks the answer two ways: `faultyLine` drives the highlight in
+    // the snippet, `correctChoiceId` drives the choice list. If they disagree the
+    // screen contradicts itself.
+    for (const activity of ACTIVITIES) {
+      if (activity.kind !== 'challenge' || activity.challengeType !== 'debug') continue
+
+      expect(activity.faultyLine, `${activity.id} has no faultyLine`).toBeDefined()
+      const correct = activity.choices.find((c) => c.id === activity.correctChoiceId)
+      expect(correct, `${activity.id} correct answer is not a choice`).toBeDefined()
+      expect(
+        Number.parseInt(correct!.label.replace(/^L/i, ''), 10),
+        `${activity.id} correct choice does not name line ${activity.faultyLine}`,
+      ).toBe(activity.faultyLine)
+    }
+  })
+
+  it('offers a debug challenge in exactly one language, so line numbers mean one thing', () => {
+    for (const activity of ACTIVITIES) {
+      if (activity.kind !== 'challenge' || activity.challengeType !== 'debug') continue
+      const languages = Object.keys(activity.snippet)
+      expect(languages.length, `${activity.id} debug snippet spans ${languages.length} languages`).toBe(1)
+      expect(activity.snippet[languages[0] as 'python']!.split('\n').length).toBeGreaterThan(
+        activity.faultyLine ?? 0,
+      )
+    }
+  })
+
+  it('makes an algorithm challenge’s choice order the solution order', () => {
+    // The correct running order is stored as the array order, with
+    // `correctChoiceId` naming the step that has to come first. Asserted so a
+    // future edit cannot reorder the array and silently break every answer.
+    for (const activity of ACTIVITIES) {
+      if (activity.kind !== 'challenge' || activity.challengeType !== 'algorithm') continue
+      expect(activity.correctChoiceId).toBe(activity.choices[0].id)
+      expect(activity.choices.length).toBeGreaterThanOrEqual(4)
+      // Steps are named, not lettered, so the ordering UI can render them.
+      for (const choice of activity.choices) {
+        expect(choice.label, `${activity.id} has a lettered step`).not.toMatch(/^[A-Z]$/)
+        expect(choice.text).toBeTruthy()
+      }
+    }
+  })
 })
 
 describe('seed: people', () => {

@@ -6,6 +6,14 @@ interface LanguageSwitcherProps {
   onChange: (id: LanguageId) => void
   className?: string
   size?: 'sm' | 'md'
+  /**
+   * Restrict the tabs to these languages, in this order.
+   *
+   * Omitted means every language, which is what the landing page, the trace
+   * debugger and the legacy challenge page want. A code lab passes its own
+   * `languages` so the runner never offers a language the activity forbids.
+   */
+  allowed?: readonly LanguageId[]
 }
 
 const LABELS: Record<LanguageId, string> = {
@@ -20,7 +28,9 @@ export function LanguageSwitcher({
   onChange,
   className,
   size = 'md',
+  allowed,
 }: LanguageSwitcherProps) {
+  const languages = allowed?.length ? allowed : LANGUAGE_ORDER
   return (
     <div
       role="tablist"
@@ -30,7 +40,7 @@ export function LanguageSwitcher({
         className,
       )}
     >
-      {LANGUAGE_ORDER.map((id) => {
+      {languages.map((id) => {
         const active = value === id
         return (
           <button

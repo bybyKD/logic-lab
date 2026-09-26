@@ -17,6 +17,11 @@ interface CodeEditorProps {
   className?: string
   readOnly?: boolean
   height?: string
+  /**
+   * Restrict the language tabs to these, in this order. Omitted shows all four,
+   * which is the existing behaviour every current caller relies on.
+   */
+  allowedLanguages?: readonly LanguageId[]
 }
 
 const STATUS_STYLES: Record<ExecutionStatus, string> = {
@@ -46,6 +51,7 @@ export function CodeEditor({
   className,
   readOnly,
   height = '320px',
+  allowedLanguages,
 }: CodeEditorProps) {
   const [ready, setReady] = useState(false)
 
@@ -59,7 +65,12 @@ export function CodeEditor({
       {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-lab-700 bg-lab-850 px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <LanguageSwitcher value={language} onChange={onLanguageChange} size="sm" />
+          <LanguageSwitcher
+            value={language}
+            onChange={onLanguageChange}
+            size="sm"
+            allowed={allowedLanguages}
+          />
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden items-center gap-1.5 font-mono text-[0.625rem] text-ink-600 sm:flex">
@@ -125,6 +136,9 @@ export function CodeEditor({
             padding: { top: 16, bottom: 16 },
             scrollBeyondLastLine: false,
             readOnly,
+            // Without this the editor keeps focus on every Tab, and a keyboard user
+            // can never reach Run or Submit. Escape is the way to indent instead.
+            tabFocusMode: true,
             smoothScrolling: true,
             cursorBlinking: 'smooth',
             cursorSmoothCaretAnimation: 'on',

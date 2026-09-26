@@ -6,20 +6,6 @@ import { cn } from '../../utils/cn'
 import type { Activity, ActivityKind } from '../../domain'
 
 /**
- * The frame every teacher screen sits in.
- *
- * Navbar + rail + page padding are identical across six routes, so they live
- * here rather than being copied into each screen — a change to the teacher
- * chrome then happens in one place.
- */
-/**
- * The frame every teacher screen sits in.
- *
- * Navbar + rail + page padding are identical across six routes, so they live
- * here rather than being copied into each screen — a change to the teacher
- * chrome then happens in one place.
- */
-/**
  * The teacher chrome: Navbar, rail and page padding.
  *
  * Split from `TeacherPage` because the Content Studio editor already has its data

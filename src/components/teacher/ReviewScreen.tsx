@@ -61,7 +61,7 @@ export function ReviewScreen() {
       state={state}
       errorMessage="This submission could not be loaded. It may belong to a different activity."
     >
-      {(data) => <ReviewBody {...data} requestedId={requestedId} />}
+      {(data) => <ReviewBody {...data} requestedId={requestedId} onGraded={state.retry} />}
     </AsyncBoundary>
   )
 }
@@ -72,12 +72,15 @@ function ReviewBody({
   students,
   attempts,
   requestedId,
+  onGraded,
 }: {
   activity: Activity
   submissions: Submission[]
   students: Student[]
   attempts: Attempt[]
   requestedId: string | null
+  /** Re-reads the queue, so a grade shows up in the counts it just changed. */
+  onGraded: () => void
 }) {
   if (submissions.length === 0) {
     return (
@@ -111,6 +114,7 @@ function ReviewBody({
       students={students}
       attempts={attempts}
       selectedId={initialId}
+      onGraded={onGraded}
     />
   )
 }
@@ -121,12 +125,14 @@ function SubmissionReview({
   students,
   attempts,
   selectedId,
+  onGraded,
 }: {
   activity: Activity
   submissions: Submission[]
   students: Student[]
   attempts: Attempt[]
   selectedId: string
+  onGraded: () => void
 }) {
   const [selected, setSelected] = useState(selectedId)
   const submission = submissions.find((s) => s.id === selected) ?? submissions[0]
@@ -185,6 +191,9 @@ function SubmissionReview({
     try {
       await submissionRepository.gradeWithFeedback(preview.submission, preview.feedback)
       setSaveState('saved')
+      // Reload the queue. Without this the screen keeps counting the submission it
+      // just graded as still waiting, so a teacher cannot see their own work land.
+      onGraded()
     } catch {
       setSaveState('error')
       setError('The grade could not be saved. Local storage may be full or blocked in this browser.')

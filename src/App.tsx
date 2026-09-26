@@ -14,6 +14,7 @@ import { ReviewScreen } from './components/teacher/ReviewScreen'
 import { GradebookScreen } from './components/teacher/GradebookScreen'
 import { StudentsScreen } from './components/teacher/StudentsScreen'
 import { AdminRedirect } from './components/teacher/AdminRedirect'
+import { ActivityRunnerScreen } from './features/student/activity-runner/ActivityRunnerScreen'
 import { AnimatedCursor } from './components/ui/AnimatedCursor'
 import { SessionProvider } from './services/session/SessionProvider'
 
@@ -28,6 +29,16 @@ export default function App() {
           <Route path="/module/:id" element={<ModulePage />} />
           <Route path="/challenge/:id" element={<ChallengePage />} />
           <Route path="/challenges" element={<ChallengesIndexPage />} />
+          {/*
+            The student runner. One route for every activity kind — the screen
+            switches on `activity.kind`, so a new kind is a new branch rather than
+            a new URL. The legacy student routes above stay live until Phase 7
+            turns them into redirects.
+          */}
+          <Route
+            path="/learn/c/:courseId/s/:sectionId/a/:activityId"
+            element={<ActivityRunnerScreen />}
+          />
           <Route path="/teacher" element={<ClassroomScreen />} />
           <Route path="/teacher/courses" element={<CoursesScreen />} />
           <Route path="/teacher/courses/:courseId" element={<CourseBuilderScreen />} />

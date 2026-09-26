@@ -444,6 +444,125 @@ function buildChallenge(challenge: Challenge, sectionId: string): ChallengeActiv
   }
 }
 
+/**
+ * A "find the faulty line" challenge, authored directly as a `ChallengeActivity`.
+ *
+ * The 30 legacy challenges are all `choose` or `predict`, so nothing in the
+ * course taught debugging as an activity even though `ChallengeType` and the
+ * `faultyLine` field both existed for it. It is written here rather than in
+ * `data/challenges.ts` because that file's own `type` union has no `algorithm`
+ * member and is scheduled for deletion in Phase 7.
+ *
+ * `choices` are the candidate code lines, authored in line order, so the
+ * correct answer is a real choice id and the existing seed invariant that every
+ * `correctChoiceId` resolves still holds.
+ *
+ * Only Python is supplied. A line-number answer only means one thing if the
+ * line numbers line up, and they do not across four languages.
+ */
+function buildDebugChallenge(sectionId: string): ChallengeActivity {
+  const snippet = [
+    'total = 0',
+    '',
+    'for i in range(5):',
+    '    total = i',
+    '',
+    'print(total)',
+  ].join('\n')
+
+  const candidates: { line: number; text: string }[] = [
+    { line: 1, text: 'total = 0' },
+    { line: 3, text: 'for i in range(5):' },
+    { line: 4, text: '    total = i' },
+    { line: 6, text: 'print(total)' },
+  ]
+  const faultyLine = 4
+
+  const choices: ChallengeChoice[] = candidates.map((candidate) => ({
+    id: `l${candidate.line}`,
+    label: `L${candidate.line}`,
+    text: candidate.text,
+  }))
+
+  return {
+    id: 'act-s10-dbg-accumulator',
+    sectionId,
+    kind: 'challenge',
+    challengeType: 'debug',
+    title: 'Debug: running total',
+    objective: 'Find the line that stops the loop from accumulating.',
+    instructions: CHALLENGE_GUIDANCE.debug,
+    prompt:
+      'Program ini harus mencetak 10, tetapi mencetak 4. Baris mana yang salah?',
+    snippet: { python: snippet },
+    choices,
+    correctChoiceId: `l${faultyLine}`,
+    faultyLine,
+    explanation:
+      'total = i menimpa nilai sebelumnya di setiap iterasi, sehingga setelah loop selesai total hanya berisi angka terakhir, yaitu 4. Yang benar adalah total += i, atau total = total + i.',
+    difficulty: 'intermediate',
+    estimatedMinutes: 5,
+    skillIds: ['debugging', 'loops', 'for-loops', 'variable-assignment'],
+    points: 20,
+    order: 0,
+    status: 'published',
+  }
+}
+
+/**
+ * An "arrange the steps" challenge.
+ *
+ * The running order IS the `choices` array order, which is the only place the
+ * domain can hold it: `correctChoiceId` names the step that has to come first,
+ * so the existing "every correctChoiceId resolves" invariant still holds and no
+ * new field is needed to store a full solution.
+ *
+ * `label` carries the step name and `text` the description, which is what the
+ * ordering UI renders. The A/B/C convention applies to single-answer challenges,
+ * where the letters are what distinguish the options.
+ */
+function buildAlgorithmChallenge(sectionId: string): ChallengeActivity {
+  const steps: { label: string; text: string }[] = [
+    { label: 'START', text: 'Mulai program' },
+    { label: 'INPUT TIGA ANGKA', text: 'Terima tiga angka dari pengguna' },
+    { label: 'SET TERBESAR = ANGKA PERTAMA', text: 'Anggap angka pertama yang terbesar' },
+    {
+      label: 'BANDINGKAN ANGKA BERIKUTNYA',
+      text: 'Jika angka berikutnya lebih besar, perbarui nilai terbesar',
+    },
+    { label: 'PRINT TERBESAR', text: 'Tampilkan angka terbesar' },
+  ]
+
+  const choices: ChallengeChoice[] = steps.map((step, i) => ({
+    id: `s${i + 1}`,
+    label: step.label,
+    text: step.text,
+  }))
+
+  return {
+    id: 'act-s10-alg-largest',
+    sectionId,
+    kind: 'challenge',
+    challengeType: 'algorithm',
+    title: 'Algorithm: find the largest',
+    objective: 'Order the steps so the program finds the largest of three numbers.',
+    instructions: CHALLENGE_GUIDANCE.algorithm,
+    prompt:
+      'Susun langkah-langkah berikut menjadi urutan yang benar agar program menemukan angka terbesar dari tiga angka.',
+    snippet: {},
+    choices,
+    correctChoiceId: choices[0].id,
+    explanation:
+      'Urutannya: mulai, terima input, anggap angka pertama yang terbesar, bandingkan angka berikutnya dan perbarui bila lebih besar, lalu cetak hasilnya. Melewati langkah perbandingan membuat program selalu mencetak angka pertama.',
+    difficulty: 'beginner',
+    estimatedMinutes: 6,
+    skillIds: ['algorithm-design', 'decomposition', 'comparison-operators'],
+    points: 20,
+    order: 0,
+    status: 'published',
+  }
+}
+
 function buildQuiz(sectionId: string): QuizActivity {
   const sourceIds = [1, 2]
   const questions: QuizQuestion[] = sourceIds
@@ -637,6 +756,12 @@ function buildCourse() {
 
     if (module.id === 1) {
       sectionActivities.push(buildQuiz(sectionId))
+    }
+
+    // The two variants the legacy challenge set never had, in a module whose
+    // skills are exactly algorithm-design and debugging.
+    if (module.id === 10) {
+      sectionActivities.push(buildDebugChallenge(sectionId), buildAlgorithmChallenge(sectionId))
     }
 
     CHALLENGES.filter((c) => c.moduleId === module.id).forEach((challenge) => {
