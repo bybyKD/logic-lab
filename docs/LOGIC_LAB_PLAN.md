@@ -1449,7 +1449,7 @@ describing work that was not done, or omitting work that was.
 | 1 | Domain model + seed | `[x]` | `8b7620d` |
 | 2 | Services | `[x]` | `d0f8815` |
 | 3 | Teacher classroom (§16) | `[x]` | `cdaceaa` |
-| 4 | Teacher loop | `[x]` | *(this commit)* |
+| 4 | Teacher loop | `[x]` | `e1fb2cf` |
 | 5 | Student loop | `[ ]` | — |
 | 6 | Student dashboard | `[ ]` | — |
 | 7 | Cleanup + docs | `[ ]` | — |
