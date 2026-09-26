@@ -1447,7 +1447,7 @@ describing work that was not done, or omitting work that was.
 | Phase | Scope | Status | Commit |
 |---|---|---|---|
 | 1 | Domain model + seed | `[x]` | `8b7620d` |
-| 2 | Services | `[x]` | `feat(services)` |
+| 2 | Services | `[x]` | `d0f8815` |
 | 3 | Teacher classroom (§16) | `[ ]` | — |
 | 4 | Teacher loop | `[ ]` | — |
 | 5 | Student loop | `[ ]` | — |
