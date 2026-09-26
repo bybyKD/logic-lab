@@ -1335,12 +1335,14 @@ currently hardcoded to the AGE blocks) are new seeded content**, because no
 (per test case) + teacher feedback if present + skill-mastery delta.
 **Commit:** `feat(student): add activity runner with code lab, submit, and feedback`
 
-### Phase 6 — Student dashboard rewrite `[ ]`
+### Phase 6 — Student dashboard rewrite `[x]`
 
-`/learn` — Continue · Upcoming (due dates) · Recommended practice (weakest skills
+`/learn` — Continue · Upcoming · Recommended practice (weakest skills
 → concrete activities) · Recent feedback · Skill graph (visualizes the `Skill`
 DAG). **Every number derived**; deletes `PROFILE_SKILLS` and the hardcoded
 `842 / 37 / 5 DAYS` stats in `LearningDashboard.tsx`.
+**Shipped as** "Up next" + "Waiting on your teacher", not due dates: no due-date
+data exists anywhere in the model (see the Phase 6 log).
 **Commit:** `feat(student): rebuild dashboard from derived progress and skill mastery`
 
 ### Phase 7 — Cleanup, migration, docs `[ ]`
@@ -1369,7 +1371,8 @@ exist.
 /teacher/studio    /teacher/studio/:activityId     Content Studio
 /teacher/assignments  /teacher/assignments/:activityId/review
 /teacher/gradebook  /teacher/classes/:classId/students
-/admin /dashboard /module/:id /challenge/:id /challenges  → redirects (removed in Phase 7)
+/dashboard                                        → redirect to /learn (Phase 6)
+/admin /module/:id /challenge/:id /challenges     → redirects (removed in Phase 7)
 ```
 
 ### Out of scope for all 7 phases
@@ -1451,7 +1454,7 @@ describing work that was not done, or omitting work that was.
 | 3 | Teacher classroom (§16) | `[x]` | `cdaceaa` |
 | 4 | Teacher loop | `[x]` | `e1fb2cf` |
 | 5 | Student loop | `[x]` | `ecc0182` |
-| 6 | Student dashboard | `[ ]` | — |
+| 6 | Student dashboard | `[x]` | `7048cbe` |
 | 7 | Cleanup + docs | `[ ]` | — |
 
 ### Findings that shaped the plan
@@ -1898,8 +1901,113 @@ submission review, and the gradebook.
   whose `AlgorithmBuilder` output had to stay identical: 5 blocks, click to move,
   reset, no errors.
 
-**Next — Phase 6:** the student dashboard rewrite at `/learn` — Continue · Upcoming
-· Recommended practice from the weakest skills · Recent feedback · Skill graph.
-Every number derived, which retires `PROFILE_SKILLS` and the hardcoded
-`842 / 37 / 5 DAYS` stats. It also becomes the entry point into the runner this
-phase shipped.
+### Phase 6 — Student dashboard
+
+- **The plan's "Upcoming (due dates)" panel is not buildable, and the honest
+  substitute replaced it.** There is no due date anywhere in the model: no
+  `Assignment` entity, and `Activity.dueOffsetDays` is unset on all 48 seeded
+  activities — a relative offset with nothing to anchor it against. Inventing a
+  deadline would have been the exact failure this phase exists to remove, so the
+  panel shows **"Up next" in real course order** and says in its own copy that
+  nothing in it is a deadline. A second panel, **"Waiting on your teacher"**,
+  covers the one case where a learner really is blocked: submitted, not graded.
+- **`Logic Score 842` had no recoverable meaning, so it is gone rather than
+  replaced with a similar-looking number.** The four tiles are now metrics that
+  can be defended: course coverage %, mean best score, mastered count, and a
+  practice streak derived from distinct attempt days.
+- **"Average best score" is a mean of per-activity bests, not of all attempts.**
+  Averaging every attempt punishes a learner for retrying, which is the opposite
+  of what the number would claim to reward. With nothing scored the tile shows
+  `—`, not `0`: "no attempts yet" and "scored zero" are different facts.
+- **A streak that ran through yesterday is still alive today.** Counting from
+  yesterday rather than reporting zero is what a learner expects at 9am, and an
+  empty history reports 0 rather than a fabricated 1.
+- **Coverage means "opened", not "finished".** It is the share of *published*
+  activities with at least one attempt, and draft activities are excluded from
+  every count. The browser check cross-verifies the coverage tile against the
+  header's untouched counts, so those two numbers cannot drift apart.
+- **The skill graph is an indented forest, not a force-directed canvas.** The DAG
+  is 31 skills across 7 domains at depth 3; a tree reads that structure directly,
+  survives 390px with no canvas or resize observer, and stays keyboard- and
+  screen-reader-navigable. A physics simulation would look more like a graph and
+  communicate less.
+- **Eight skills are containers that no activity names**, so their score is a
+  roll-up from their children. Labelled `from children · no activity of its own`,
+  because a real number rendered against work the learner never did is a lie the
+  UI can prevent. `SkillNodeRole` (`practised` / `rollup` / `untouched`) lives in
+  the view model and is unit tested.
+- **Recommendations never repeat an activity.** A weak parent and a weak child
+  frequently share the same only activity; offering it twice reads as padding.
+  Strongest skill first, each activity at most once, and a weak skill with nothing
+  published against it is dropped rather than filled with something unrelated.
+- **The header divided two different populations** and rendered as "15 of 7
+  domains still untouched" — untouched *skills* over *domains*. Both figures now
+  come from the same population, and a test asserts the pair is consistent.
+- **`drillsChild` was keyed by the wrong id.** It looked an activity id up in a
+  map of skill ids, so the "via …" line was always empty. No test failed, because
+  `not.toBeNull()` is not what the line was for; it surfaced by dumping the
+  rendered page as text. It now carries the child skill's name.
+- **One definition of the activity URL.** The dashboard and the runner both needed
+  `/learn/c/:courseId/s/:sectionId/a/:activityId`, so it lives in
+  `features/student/paths.ts` and the runner's prev/next use it too.
+- **`/dashboard` had 12 inbound links**, so deleting the screen outright would have
+  404'd every one of them. It now redirects to `/learn`, and every link the repo
+  owns points straight at `/learn`. `landing/Hero.tsx` is user-modified, so its
+  href deliberately still says `/dashboard` and works through the redirect.
+- **The navbar's app-chrome check did not know about `/learn`.** `isApp` matched
+  `/dashboard`, `/module`, `/challenge`, `/teacher` and `/admin`, so the learner
+  dashboard would have rendered the public navbar until the path was added.
+- **The dashboard reads through `courseRepository`**, not `data/selectors`, so a
+  teacher's Content Studio edit is what the learner sees and clicks into.
+- **`deriveActivityProgress` finally has a production consumer.** It shipped in
+  Phase 1 with only tests, and it is exactly the status-per-activity derivation
+  this phase needed.
+- **Deleted:** `LearningDashboard.tsx`, `DashboardPage.tsx`, `SkillBar.tsx` and
+  `ModuleCard.tsx` — all only reachable from the old screen. `StatCard` and
+  `ProgressRing` stay: the admin screens and `ModulePage` still use them.
+  `data/modules.ts` stays too, because the legacy module flow still reads it until
+  Phase 7.
+- **Bugs found by browser-checking, invisible to the unit tests:**
+  - 15px of horizontal overflow at 390px. `min-w-0` on the truncating title span
+    was not enough: the *grid items* default to `min-width: auto`, so the
+    recommended list's intrinsic width set the column to 377px instead of 350px
+    and pushed the page wide. Traced by measuring each node's min-content and
+    bisecting by hiding subtrees, rather than guessing at the CSS.
+  - A learner who had passed everything got a blank continue card. There is no
+    "complete" reason: the most recent activity is offered for review instead,
+    because a dashboard that empties the moment you succeed reads as a bug.
+- **Every number on the page is a pure function of the learner's own records**
+  and an injected `now`. `buildLearnDashboard` is the single entry point, so the
+  tile, the ring, the graph and the recommendations are the same computation
+  rather than five that happen to agree today.
+
+**Verification**
+
+- `npx tsc -b --force` clean; `npm run build` passes.
+- `npm test` — **370 passed, 0 failed** (18 files), up from 333. New file
+  `viewModel.test.ts` (37 tests) on synthetic records only, so every assertion
+  names the attempts that produced the number: course order and draft exclusion,
+  all four resume priorities, the streak's gaps and day boundaries, coverage and
+  the `—` state, recommendation ranking, dedupe and the drop-when-nothing-fits
+  case, the three skill roles, cycle safety, and that another learner's attempts
+  are ignored.
+- Browser-checked with Playwright at 1440px and 390px: no console or page errors,
+  no horizontal overflow, no `NaN`/`undefined`/`Invalid Date` leaking from the
+  derivation, and none of the old prototype copy (`842`, `5 DAYS`, `naik 23 poin`,
+  `SELAMAT SORE`, `YOUR LOGIC PROFILE`) anywhere on the page.
+- Every activity link on the dashboard was followed into the runner and opened a
+  real, submittable activity; the continue target is asserted not to also appear
+  in up next.
+- The empty state was checked in a real browser against `student-042`, one of the
+  five seeded learners with no attempts at all, rather than by mocking: `0%`
+  coverage, a `—` score, and a "Start activity" call to action.
+- All 14 routes swept at both widths, including the `/dashboard` redirect and the
+  untouched landing page.
+
+**Next — Phase 7:** remove `LESSON_SAMPLES`, the dead `debug`/`truth` branches and
+`answer: 'fixed'`, redirect the remaining legacy student routes
+(`/module/:id`, `/challenge/:id`, `/challenges`), delete superseded
+`components/admin/*`, and write the missing `README.md` + `docs/architecture.md` +
+`docs/data-model.md` + `docs/execution.md`. Note that
+`src/components/landing/Hero.tsx` still links to `/dashboard` and is user-modified,
+so repointing it is left to that phase.
