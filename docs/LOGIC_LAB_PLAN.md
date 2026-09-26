@@ -1185,24 +1185,199 @@ Reusable as-is: Monaco wrapper, trace/debugger UI, `LogicFlowVisualizer`,
 | Isolated execution | client-side regex | Define the interface now, real sandbox later (§14) |
 | Auth / roles | static "demo login" → `/dashboard` | Introduce a `Session`/role switch for prototype (student vs teacher) |
 
-## B4. Prototype Build Order
+## B4. Build Plan — Phase 1 → 7 (AUTHORITATIVE)
 
-1. **Domain model** — `src/domain/` types for Course, Section, Activity (+ kinds),
-   Skill, Student, Class, Enrollment, Attempt, Submission, Feedback, TestCase,
-   Rubric. One file per concept group, no framework.
-2. **Data access layer** — `src/services/` reading from mock repositories that
-   return promises (so loading/error/empty states are real from day one and a
-   future API is a drop-in replacement).
-3. **Teacher classroom screen (§16)** — highest-value single screen.
-4. **Student loop** — join course → activity (interactive example → code lab →
-   challenge) → submit → attempt recorded → feedback shown → skill progress
-   updates.
-5. **Feedback + skill derivation** — mastery recomputed from attempts.
-6. **Content Studio (thin)** — create/edit a code-lab activity draft only; no AI
-   generation yet.
+> This replaces the earlier 6-step sketch. The historical v1 build order is kept
+> in `docs/archive/LOGIC_LAB_PLAN_v1_prototype.md`.
+>
+> Status markers: `[ ]` not started · `[~]` in progress · `[x]` committed+pushed.
+> **Update this section and the Progress Log in the same commit as the phase.**
 
-Keep every new abstraction earn its place: one implementation, mock-backed, and
-shaped like the thing that replaces it.
+### Locked decisions for this increment
+
+- **Testing:** Vitest, the only new dependency (`"test": "vitest run"`). If the
+  install fails offline, fall back to `node:test` with zero dependencies. Tests
+  cover pure logic only (no jsdom, no component tests).
+- **UI copy:** English on all new teacher/student screens. Known trade-off: the
+  landing page and the legacy dashboard are still Bahasa until Phases 5–6
+  migrate them, so the app is temporarily mixed-language.
+- **Persistence:** `localStorage` for attempts, grades, feedback, and session, so
+  the learn→submit→grade loop survives a reload and is demonstrable end to end.
+- **Execution:** client-side simulation behind an `ExecutionService` interface.
+  Never on a server. Real sandboxing is a later phase (§14).
+- **Git:** never stage files the user edited but did not ask to be committed —
+  as of this plan, uncommitted user edits exist in `.gitignore`,
+  `src/components/landing/Hero.tsx`, `src/components/logic/LogicFlowVisualizer.tsx`,
+  and `src/components/ui/StickyLogicShowcase.tsx`.
+
+### Phase 1 — Domain model + seed `[ ]`
+
+**Goal:** separate content from learner state, and define entities the UI can
+render instead of hardcoded arrays.
+
+```ts
+// src/domain/people.ts
+Person{id,name,email} · Student · Teacher
+Class{id,courseId,teacherIds,term,startDate,endDate}
+Enrollment{classId,studentId,status}   // ← progress/completed/locked move here
+
+// src/domain/course.ts
+Course{id,code,title,description,languageIds,skillIds,status,version,updatedAt}
+Section{id,courseId,title,summary,order,activityIds}
+type ActivityKind = 'lesson'|'interactive'|'codeLab'|'challenge'
+                  |'quiz'|'assignment'|'project'|'simulation'
+ActivityBase{id,sectionId,kind,title,objective,instructions,difficulty,
+             estimatedMinutes,skillIds,points,order,status,dueOffsetDays?,rubric?}
+  + LessonActivity{blocks: LessonBlock[]}          // typed blocks, NOT markdown
+  + InteractiveActivity{visualizer,snippetIds}
+  + CodeLabActivity{languages,starterCode,testCases,hints}
+  + ChallengeActivity{challengeType,prompt,snippet,choices?,answer,explanation}
+  + QuizActivity · AssignmentActivity · ProjectActivity · SimulationActivity
+
+// src/domain/assessment.ts
+TestCase{id,name,hidden,input?,expectedOutput,skillId?,weight} · TestOutcome
+Attempt{id,activityId,studentId,kind,submittedAt,language?,code?,choiceIndex?,
+        selectedLines?,passed,score,durationMs,hintsUsed,misconceptionId?}
+Submission{attemptId,status:'submitted'|'graded',grade?,gradedBy?,gradedAt?}
+Feedback{authorRole:'auto'|'teacher',body,kind:'comment'|'rubric'|'auto'}
+Rubric{criteria:[{id,label,maxPoints,levels:[{label,points,descriptor}]}]}
+
+// src/domain/learning.ts
+Skill{id,name,parentId?,domain}                   // DAG: for/while/nested under loops
+SkillMastery{skillId,score,evidenceCount,lastPracticedAt,confidence}
+ActivityProgress{activityId,studentId,status,bestScore,attempts,lastActivityAt}
+```
+
+- `src/data/seed/` converts `MODULES`→Course/Sections/Activities,
+  `CHALLENGES`→`ChallengeActivity`, `LESSON_SAMPLES` (currently inline in
+  `ModulePage.tsx`)→`LessonActivity.blocks`, `PARTICIPANTS`→`Student`+`Enrollment`.
+- Normalize free-text skills (`'Dekomposisi'`, `'if'`, `'else'`) into ids with a
+  parent DAG.
+- Deterministic `mulberry32` PRNG for seeded attempts — never `Math.random()` at
+  module scope, or the classroom numbers change on every reload.
+- `src/data/selectors.ts` exposes derived views so the legacy pages keep working.
+- Class = 42 of the 80 participants (matches the §16 example).
+
+**DoD:** `tsc` clean, zero visual change, legacy exports still satisfied.
+**Commit:** `feat(domain): add course/activity/attempt entity model and seed data`
+
+### Phase 2 — Services `[ ]`
+
+**Goal:** one seam for execution, one for data access, real derived learning state.
+
+- `services/execution/` — `ExecutionService.run(req) → ExecutionResult` where
+  `ExecutionResult{status:'ok'|'failed'|'error'|'unsupported', stdout, stderr,
+  testOutcomes, durationMs, exitCode, trace?}`. `SimulatedExecutionService` wraps
+  the existing simulator; unrecognized pattern → `unsupported` (honest) instead of
+  a fake error. `getExecutionService()` is the single swap point for a real sandbox.
+- `services/repositories/` — async repos for course/class/attempt/submission/
+  feedback/student, backed by seed + persistence, so loading/empty/error states
+  are real from day one and a future API is a drop-in.
+- `services/learning/mastery.ts` — pure functions. Mastery = recency-weighted mean
+  of attempt scores (14-day half-life) × hint penalty (floor 0.6), plus
+  `weakestSkills`, `classProgress`, `strugglingStudents`, `aggregateMisconceptions`.
+  Confidence: low <3 evidence, medium <8, high 8+.
+- `services/learning/misconceptionDetector.ts` — `detectMisconception(code,
+  testOutcomes)` over a small documented rule catalog:
+  `assignment-in-condition` · `off-by-one-range` · `indentation-block` ·
+  `uninitialised-accumulator`. Each rule carries skill + remediation hint +
+  recommended activity. This is what makes the §16 "Common issue" line **derived**.
+- `services/storage/persistence.ts` — versioned `logiclab.v1.*`, safe JSON parse.
+- `services/session/SessionProvider.tsx` — role, currentStudentId, currentTeacherId,
+  `switchRole`, `resetDemoData`. Replaces the public `/admin` route and fake login.
+
+**Tests:** `mastery`, `misconceptionDetector`, `SimulatedExecutionService`
+(including `unsupported`), and seed referential integrity (every `sectionId` and
+`skillId` resolves, every `TestCase` has an expected output, no orphan activities).
+**Commit:** `feat(services): add execution, repository, mastery, and session layers`
+
+### Phase 3 — Teacher classroom screen (§16) `[ ]`
+
+**Goal:** the product's most important single screen.
+
+- `components/teacher/` — `TeacherLayout` (rail: implemented sections live;
+  remaining §9 destinations listed muted as non-links, so there are no dead
+  routes), `ClassroomScreen`, `CohortSplit` (completed / struggling / not
+  started, all derived), `ActivityCompletionCard`, `MisconceptionPanel`, and the
+  `[View students] [Open activity] [Explain to class]` actions.
+- `components/ui/AsyncBoundary.tsx` — one reusable loading/error/empty wrapper,
+  satisfying §28 for every future screen.
+- `/teacher` route; `/admin` becomes a redirect; role switch in `Navbar`.
+- `components/admin/*` gains a view-model adapter (`toStudentRow`) instead of a
+  rewrite.
+
+**DoD:** derived cohort split, derived misconception, tests+build pass, 1440px and
+390px verified, no console errors.
+**Commit:** `feat(teacher): add derived classroom screen with cohort and misconception panels`
+
+### Phase 4 — Teacher loop: create → assign → observe → grade `[ ]`
+
+`/teacher/courses` · `/teacher/courses/:courseId` (sections, activities,
+publish/draft) · `/teacher/studio` + `/teacher/studio/:activityId` (**Content
+Studio**: instructions, starter code, allowed language, visible + hidden test
+cases, hints, difficulty, learning objectives, related skills, rubric, time
+estimate) · `/teacher/assignments` · `/teacher/assignments/:activityId/review`
+(run tests, per-case results, rubric scoring, leave feedback → `Submission.grade`
++ `Feedback`) · `/teacher/gradebook` · `/teacher/classes/:classId/students`.
+**Commit:** `feat(teacher): add content studio, submission review, and gradebook`
+
+### Phase 5 — Student loop: learn → practice → submit → feedback `[ ]`
+
+One kind-switched route:
+`/learn/c/:courseId/s/:sectionId/a/:activityId` +
+`features/student/activity-runner/`.
+`CodeLabActivity` = Monaco + `ExecutionService` + visible/hidden test cases
+(hidden results masked until graded) + progressive hints + submit → persisted
+`Attempt`. `ChallengeActivity` reuses `ChoiceCard`; the **`debug` variant (pick
+the faulty line) and `algorithm` variant (`AlgorithmBuilder` parameterized — it is
+currently hardcoded to the AGE blocks) are new seeded content**, because no
+`debug` challenge exists in the data today. After submit: auto-feedback panel
+(per test case) + teacher feedback if present + skill-mastery delta.
+**Commit:** `feat(student): add activity runner with code lab, submit, and feedback`
+
+### Phase 6 — Student dashboard rewrite `[ ]`
+
+`/learn` — Continue · Upcoming (due dates) · Recommended practice (weakest skills
+→ concrete activities) · Recent feedback · Skill graph (visualizes the `Skill`
+DAG). **Every number derived**; deletes `PROFILE_SKILLS` and the hardcoded
+`842 / 37 / 5 DAYS` stats in `LearningDashboard.tsx`.
+**Commit:** `feat(student): rebuild dashboard from derived progress and skill mastery`
+
+### Phase 7 — Cleanup, migration, docs `[ ]`
+
+Remove `LESSON_SAMPLES`, `PROFILE_SKILLS`, literal stats, the dead `debug`/`truth`
+branches and the `answer: 'fixed'` comment. Redirect `/dashboard`→`/learn`,
+`/module/:id`→section, `/challenge/:id`→activity, `/challenges`→`/learn`; delete
+superseded `components/admin/*`. Optionally re-point the landing page's
+`SolveChallenge` / `DebuggingSection` at the shared activity renderer — skipped if
+it risks the landing page. Docs: `README.md` (missing today), `docs/architecture.md`,
+`docs/data-model.md`, `docs/execution.md` (incl. sandbox research note). No empty
+`ai.md` / `contributing.md` stubs — write them when AI features and contributors
+exist.
+**Commit:** `refactor: remove legacy module/challenge flow and add architecture docs`
+
+### End-state route map
+
+```text
+/                                                  landing (untouched marketing)
+/learn                                             student dashboard
+/learn/c/:courseId                                 course overview
+/learn/c/:courseId/s/:sectionId                    section overview
+/learn/c/:courseId/s/:sectionId/a/:activityId      activity runner
+/teacher                                           classroom (§16)
+/teacher/courses  /teacher/courses/:courseId       builder + publish
+/teacher/studio    /teacher/studio/:activityId     Content Studio
+/teacher/assignments  /teacher/assignments/:activityId/review
+/teacher/gradebook  /teacher/classes/:classId/students
+/admin /dashboard /module/:id /challenge/:id /challenges  → redirects (removed in Phase 7)
+```
+
+### Out of scope for all 7 phases
+
+Real backend · real auth · real sandboxed execution (interface only, §14) · AI
+tutoring and AI content generation (§11/§12) · exams · discussions · subjects
+beyond programming. These appear in the rail as roadmap text, never as fake
+screens.
 
 ## B5. Prototype Rules
 
@@ -1223,15 +1398,74 @@ Same checklist as §28, plus:
 * Keyboard-reachable; `prefers-reduced-motion` respected.
 * This file updated if the direction or schema changed.
 
+## B7. Resume Protocol (MANDATORY — do not skip)
+
+This exists so no session ever loses track of the plan. Follow it literally.
+
+**At the start of every phase:**
+
+1. Read this file **top to bottom** — direction (§0–31) then the build plan (B4).
+2. `git log --oneline -5` — confirm the previous phase's commit exists.
+3. `git log origin/main -1` — confirm the previous phase was actually **pushed**.
+4. `git status` — if there are uncommitted edits you did not make, **preserve
+   them** and do not stage them. Ask the user if unsure.
+5. Find the first phase marker in B4 that is not `[x]` and state it before coding.
+6. Run `npm run test && npm run build` to confirm the tree is green before
+   starting.
+
+**At the end of every phase:**
+
+1. Flip the phase marker in B4 (`[ ]` → `[x]`).
+2. Append a Progress Log entry: what shipped, key files, commit hash, any
+   deviation from the plan, and what the next phase must know.
+3. Commit and push. Only then begin the next phase.
+
+**If the plan and the code disagree:** the code is the truth about what exists;
+update B4 and the Progress Log in the same commit as the fix. Never leave B4
+describing work that was not done, or omitting work that was.
+
 ---
 
 ## Progress Log
+
+### Direction
 
 - **v1 prototype (archived)** — cinematic landing, 4-language model, Monaco
   editor, pattern-matching simulator, trace debugger, 30+ challenges, student
   dashboard, 80-participant admin dashboard, responsive + a11y pass. Full detail
   in `docs/archive/LOGIC_LAB_PLAN_v1_prototype.md`.
-- **Direction reset (this file)** — product repositioned from "premium tutorial
-  site" to "interactive learning platform". Prototype scope, entity model,
-  execution direction, priorities, and the commit→push rule are now defined
-  here. No code changed in this step.
+- **Direction reset** — product repositioned from "premium tutorial site" to
+  "interactive learning platform". Entity model, execution direction, prototype
+  scope, priorities, and the commit→push rule defined here.
+- **Build plan authored** — the 7-phase plan in B4 was agreed with the user and
+  locked: Vitest as the only new dependency, English copy on new screens,
+  `localStorage` persistence, execution behind an `ExecutionService` interface.
+  Known trade-off recorded: mixed-language UI until Phases 5–6.
+
+### Phase status
+
+| Phase | Scope | Status | Commit |
+|---|---|---|---|
+| 1 | Domain model + seed | `[ ]` | — |
+| 2 | Services | `[ ]` | — |
+| 3 | Teacher classroom (§16) | `[ ]` | — |
+| 4 | Teacher loop | `[ ]` | — |
+| 5 | Student loop | `[ ]` | — |
+| 6 | Student dashboard | `[ ]` | — |
+| 7 | Cleanup + docs | `[ ]` | — |
+
+### Findings that shaped the plan
+
+- `Module.progress` / `.completed` / `.locked` are hardcoded on the content
+  object (`src/data/modules.ts`) — the single biggest structural blocker, fixed
+  by moving learner state to `Enrollment`.
+- `LESSON_SAMPLES` is inline in `ModulePage.tsx` and `PROFILE_SKILLS` + literal
+  stats (`842`, `37`, `5 DAYS`) in `LearningDashboard.tsx` — both violate the
+  "no hardcoded content in pages" rule.
+- All 30 challenges are `choose` (16) or `predict` (14). The `debug` / `truth`
+  members of `Challenge.type` and the `answer: 'fixed'` comment are dead, so the
+  debug and algorithm activity variants in Phase 5 are **new seeded content**.
+- `simulateCode` has only 3 callers (`ChallengePage`, `CodeTrace`, and the
+  landing-only `InteractiveCode`), so wrapping it in Phase 2 is cheap.
+- `ChallengePage` renders only `choices`, so `predict` and `choose` look
+  identical today.
