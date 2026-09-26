@@ -23,7 +23,7 @@ export function Footer() {
           <div>
             <p className="technical-label mb-4">Training</p>
             <ul className="space-y-3 text-sm text-ink-300">
-              <li><Link to="/dashboard" className="transition-colors hover:text-accent-300">Dashboard</Link></li>
+              <li><Link to="/learn" className="transition-colors hover:text-accent-300">Dashboard</Link></li>
               <li><Link to="/challenges" className="transition-colors hover:text-accent-300">Challenges</Link></li>
               <li><span className="text-ink-600">Learning Path</span></li>
             </ul>

@@ -1,6 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { LandingPage } from './pages/LandingPage'
-import { DashboardPage } from './pages/DashboardPage'
 import { ModulePage } from './pages/ModulePage'
 import { ChallengePage } from './pages/ChallengePage'
 import { ChallengesIndexPage } from './pages/ChallengesIndexPage'
@@ -15,6 +14,7 @@ import { GradebookScreen } from './components/teacher/GradebookScreen'
 import { StudentsScreen } from './components/teacher/StudentsScreen'
 import { AdminRedirect } from './components/teacher/AdminRedirect'
 import { ActivityRunnerScreen } from './features/student/activity-runner/ActivityRunnerScreen'
+import { LearnDashboardScreen } from './features/student/dashboard/LearnDashboardScreen'
 import { AnimatedCursor } from './components/ui/AnimatedCursor'
 import { SessionProvider } from './services/session/SessionProvider'
 
@@ -25,7 +25,14 @@ export default function App() {
         <AnimatedCursor />
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          {/*
+            The derived learner dashboard. `/learn` is the canonical home now; the
+            old `/dashboard` screen is gone because its numbers were invented, so
+            rather than leave twelve links pointing at a deleted page it redirects.
+            `/module`, `/challenge` and `/challenges` stay live until Phase 7.
+          */}
+          <Route path="/learn" element={<LearnDashboardScreen />} />
+          <Route path="/dashboard" element={<Navigate to="/learn" replace />} />
           <Route path="/module/:id" element={<ModulePage />} />
           <Route path="/challenge/:id" element={<ChallengePage />} />
           <Route path="/challenges" element={<ChallengesIndexPage />} />

@@ -6,6 +6,7 @@ import { SKILLS } from '../../../data/seed/skills'
 import { buildActivitySkillMap } from '../../../services/learning/mastery'
 import { masteryDeltaForAttempt } from '../../../services/learning/masteryDelta'
 import { cn } from '../../../utils/cn'
+import { activityHref } from '../paths'
 import { CodeLabRunner } from './CodeLabRunner'
 import { ChallengeRunner } from './ChallengeRunner'
 import { StudentPage } from './StudentShell'
@@ -87,9 +88,9 @@ export function ActivityRunnerScreen() {
     >
       {(data) => {
         const { activity } = data
-        const path = `/learn/c/${courseId}/s/${sectionId}/a/`
         // Prev/next come from the section's own ordered list, so a learner can walk
-        // the whole section without a dashboard to link in (that arrives in Phase 6).
+        // the whole section from the runner itself, without going back to the
+        // dashboard to find the next thing.
         const position = data.siblings.findIndex((a) => a.id === activity.id)
         const previous = position > 0 ? data.siblings[position - 1] : null
         const next = position >= 0 ? (data.siblings[position + 1] ?? null) : null
@@ -112,12 +113,12 @@ export function ActivityRunnerScreen() {
 
               <div className="flex flex-wrap items-center gap-2">
                 {previous && (
-                  <Link to={`${path}${previous.id}`}>
+                  <Link to={activityHref(courseId, sectionId, previous.id)}>
                     <GhostButton>← {kindLabel(previous.kind)}</GhostButton>
                   </Link>
                 )}
                 {next && (
-                  <Link to={`${path}${next.id}`}>
+                  <Link to={activityHref(courseId, sectionId, next.id)}>
                     <GhostButton>Next {kindLabel(next.kind)} →</GhostButton>
                   </Link>
                 )}

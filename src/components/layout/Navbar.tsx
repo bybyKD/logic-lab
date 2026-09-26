@@ -9,7 +9,7 @@ interface NavbarProps {
 }
 
 const appLinks = [
-  { to: '/dashboard', label: 'Learn' },
+  { to: '/learn', label: 'Learn' },
   { to: '/challenges', label: 'Challenges' },
   { to: '/teacher', label: 'Classroom' },
 ]
@@ -100,6 +100,7 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
 
   const isApp =
     variant === 'app' ||
+    pathname.startsWith('/learn') ||
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/module') ||
     pathname.startsWith('/challenge') ||
@@ -113,7 +114,7 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
    */
   const changeRole = (next: 'student' | 'teacher') => {
     switchRole(next)
-    navigate(next === 'teacher' ? '/teacher' : '/dashboard')
+    navigate(next === 'teacher' ? '/teacher' : '/learn')
   }
 
   const actingAs = role === 'teacher' ? teacher?.name : student?.name
@@ -192,7 +193,7 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
             </>
           ) : (
             <>
-              <GlowButton href="/dashboard" variant="ghost" size="md">
+              <GlowButton href="/learn" variant="ghost" size="md">
                 Start Training
               </GlowButton>
             </>
@@ -249,7 +250,7 @@ export function Navbar({ variant = 'public' }: NavbarProps) {
                     Login
                   </button>
                   <Link
-                    to="/dashboard"
+                    to="/learn"
                     className="w-full rounded-pill bg-accent-400 py-2.5 text-center text-sm font-medium text-lab-950"
                   >
                     Start Training →

@@ -22,7 +22,7 @@ export function ModulePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-lab-950">
         <p className="text-ink-500">Modul tidak ditemukan.</p>
-        <Link to="/dashboard" className="text-accent-400 underline">
+        <Link to="/learn" className="text-accent-400 underline">
           Kembali ke dashboard
         </Link>
       </div>
@@ -40,7 +40,7 @@ export function ModulePage() {
       <main className="mx-auto max-w-[1200px] px-6 pt-28 pb-24 lg:px-12">
         {/* Breadcrumb + header */}
         <div className="flex items-center gap-2 font-mono text-xs text-ink-600">
-          <Link to="/dashboard" className="transition-colors hover:text-ink-300">Dashboard</Link>
+          <Link to="/learn" className="transition-colors hover:text-ink-300">Dashboard</Link>
           <span>/</span>
           <span className="text-ink-300">Module {module.index}</span>
         </div>
@@ -147,7 +147,7 @@ export function ModulePage() {
               </p>
             </div>
             <Link
-              to={MODULES[module.id].locked ? '/dashboard' : `/module/${module.id + 1}`}
+              to={MODULES[module.id].locked ? '/learn' : `/module/${module.id + 1}`}
               className="group flex items-center gap-2 font-mono text-sm text-accent-400 transition-colors hover:text-accent-300"
             >
               {MODULES[module.id].locked ? 'Lalu' : 'Lanjut'}

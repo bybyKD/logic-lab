@@ -27,7 +27,7 @@ export function LearningPathPreview() {
           </ScrollReveal>
           <ScrollReveal delay={0.1}>
             <Link
-              to="/dashboard"
+              to="/learn"
               className="group inline-flex items-center gap-2 text-accent-400 transition-colors hover:text-accent-300"
             >
               Lihat semua modul
@@ -40,7 +40,7 @@ export function LearningPathPreview() {
           {preview.map((m, i) => (
             <ScrollReveal key={m.id} delay={i * 0.05}>
               <Link
-                to={m.locked ? '/dashboard' : `/module/${m.id}`}
+                to={m.locked ? '/learn' : `/module/${m.id}`}
                 aria-disabled={m.locked}
                 className={cn(
                   'group flex h-full flex-col rounded-lg border p-6 transition-all duration-300',

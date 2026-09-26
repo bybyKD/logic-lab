@@ -28,7 +28,7 @@ export function StartTraining() {
             Pelajari cara berpikir — dan kode itu akan mengikuti.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <GlowButton href="/dashboard" variant="primary" size="lg">
+            <GlowButton href="/learn" variant="primary" size="lg">
               Start Training
             </GlowButton>
             <GlowButton href="/admin" variant="secondary" size="lg">

@@ -44,7 +44,7 @@ export function AdminDashboard() {
             ← Daftar
           </button>
           <a
-            href="/dashboard"
+            href="/learn"
             className="rounded-pill border border-accent-400/40 px-4 py-2 font-mono text-xs text-accent-300 transition-colors hover:bg-accent-400/10"
           >
             Lihat sebagai peserta
