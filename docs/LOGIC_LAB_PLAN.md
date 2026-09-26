@@ -1321,7 +1321,7 @@ estimate) · `/teacher/assignments` · `/teacher/assignments/:activityId/review`
 + `Feedback`) · `/teacher/gradebook` · `/teacher/classes/:classId/students`.
 **Commit:** `feat(teacher): add content studio, submission review, and gradebook`
 
-### Phase 5 — Student loop: learn → practice → submit → feedback `[ ]`
+### Phase 5 — Student loop: learn → practice → submit → feedback `[x]`
 
 One kind-switched route:
 `/learn/c/:courseId/s/:sectionId/a/:activityId` +
@@ -1450,7 +1450,7 @@ describing work that was not done, or omitting work that was.
 | 2 | Services | `[x]` | `d0f8815` |
 | 3 | Teacher classroom (§16) | `[x]` | `cdaceaa` |
 | 4 | Teacher loop | `[x]` | `e1fb2cf` |
-| 5 | Student loop | `[ ]` | — |
+| 5 | Student loop | `[x]` | `ecc0182` |
 | 6 | Student dashboard | `[ ]` | — |
 | 7 | Cleanup + docs | `[ ]` | — |
 
@@ -1815,8 +1815,91 @@ submission review, and the gradebook.
   focus moves on Tab, and `prefers-reduced-motion: reduce` leaves no unguarded
   animation.
 
-**Next — Phase 5:** the student loop — one kind-switched activity-runner route,
-Monaco plus `ExecutionService` with hidden cases masked until graded, progressive
-hints, submit → `Attempt`, then auto-feedback and teacher feedback. It should reuse
-`activityDraft`'s notion of a valid activity and the `gradeWithFeedback` write path
-this phase added.
+### Phase 5 — Student loop
+
+- **The runner is one route, and the section list is the navigation.** No
+  dashboard links into it yet, so prev/next comes from the section's own ordered
+  activities. A `/learn` breadcrumb was removed rather than left pointing at a
+  route that does not exist.
+- **`debug` and `algorithm` are new seeded content, not new schemas.**
+  `ChallengeActivity` already declared both `challengeType` values; nothing used
+  them. The debug activity offers the buggy lines as choices, and the algorithm
+  activity stores the running order as the array order with `correctChoiceId`
+  naming the first step — which keeps the pre-existing "every `correctChoiceId`
+  resolves" seed invariant true and required no domain change.
+- **A hidden test case leaks its answer through its name.** The seeded cases are
+  called "age 17 prints Remaja", so masking is a transformation over the name, not
+  a flag: hidden cases render as "Hidden test 1" with no input and no expected
+  output, and open only once a teacher grades. The panel says when they will open
+  rather than implying the result is unknowable.
+- **The simulated `ExecutionService` cannot apply a per-input test**, so every
+  seeded hidden case comes back `not-evaluated`. That is reported as a runner limit
+  ("not counted against you"), never as a failure, and the auto feedback says so
+  explicitly — otherwise a learner is told they passed only the test they could
+  see.
+- **An unscoreable run records nothing.** A null score produces no `Attempt`, no
+  `Submission` and no mastery movement, and the runner stays unlocked so the
+  learner keeps their draft and tries again. A false zero would land in the
+  gradebook as the learner's work.
+- **Submit writes an `Attempt`, a `Submission` and auto `Feedback` together.**
+  Writing only the attempt would leave the Phase 4 review queue permanently empty.
+  All three are one user action, so a partial write is the failure mode to avoid.
+- **Mastery is derived, never stored.** The panel recomputes before/after from the
+  attempts on file, so it survives a reload and later attempts keep moving the same
+  skills. `masteryDeltaForAttempt` is separate from `computeSkillMastery` for that
+  reason; `computeSkillMastery` itself is untouched.
+- **Guard messages were written, then unreachable.** `useAsync` discarded the
+  thrown value, so all four refusals ("not in this section", "not published yet")
+  rendered as one generic line. `AsyncResult` now carries the error, and only a
+  `GuardError` reaches the screen — a repository fault like "Activity not found"
+  is plumbing and stays hidden. The four guards are extracted into
+  `guardActivityOpenable` so each is unit tested rather than trusted.
+- **The review screen never re-read its own queue after saving.** A teacher graded
+  a submission and the screen still counted it as waiting, so the first end-to-end
+  pass contradicted itself. It now reloads after `gradeWithFeedback`.
+- **Bugs found by browser-checking, all invisible to the unit tests:**
+  - `AlgorithmBuilder` reset itself on every render, because the runner passed
+    `steps`/`solution`/`initialPool` as fresh arrays and the reset effect watched
+    their identity. React logged `Maximum update depth exceeded` and an ordering
+    answer could never be completed — every click was erased. Fixed at both
+    layers: the props are memoised, and the reset keys off the *contents* of the
+    pool, so no parent can wipe a learner's work by rebuilding an array.
+  - Submitting called `reload()`, which flipped the whole screen to its loading
+    state and took the runner away mid-answer. The records just written are now
+    merged into a single `AsyncResult` the screen and the async boundary both read,
+    so the panels and the runner cannot disagree about what was submitted.
+  - Monaco swallowed `Tab`, so a keyboard user could never reach Run or Submit.
+    `tabFocusMode: true` lets focus leave the editor.
+  - Submitting used to lock the runner even when nothing was recorded.
+- **The seeded `act-s04-cl-age` already has a graded attempt**, because the
+  class-wide misconception seed hangs off it. It is the wrong subject for a submit
+  test, and asserting hidden-case masking against it fails for the right reason:
+  `reveal` is correctly `full`. Browser checks use `act-s05-cl-accumulator`, which
+  the seed leaves untouched.
+
+**Verification**
+
+- `npx tsc -b --force` clean; `npm run build` passes.
+- `npm test` — **333 passed, 0 failed** (17 files), up from 257. New:
+  `outcomeMasking` (masking rules), `attemptScoring` (code, choice, ordering and
+  partial credit), `autoFeedback`, `masteryDelta`, `activityGuards` (all four
+  refusals), plus four seed invariants — that the `debug` and `algorithm` variants
+  exist at all, that a debug activity's `faultyLine` and its correct choice name
+  the same line, that a debug snippet is single-language so line numbers mean one
+  thing, and that an algorithm's choice order is its solution order.
+- Browser-checked with Playwright at 1440px and 390px: all six runner variants
+  (lesson, choose, predict, debug, algorithm, code lab) render with no console or
+  page errors and no horizontal overflow, one `h1` each, and every control named.
+- The whole loop driven in a real browser: run → hint → submit → auto feedback →
+  mastery delta → reload, then the teacher graded it in the review screen, and the
+  learner's view afterwards opened the hidden case and showed the comment. A
+  regression check asserts no render-loop warning on the algorithm route.
+- All 12 existing routes re-checked for regressions, including the landing page,
+  whose `AlgorithmBuilder` output had to stay identical: 5 blocks, click to move,
+  reset, no errors.
+
+**Next — Phase 6:** the student dashboard rewrite at `/learn` — Continue · Upcoming
+· Recommended practice from the weakest skills · Recent feedback · Skill graph.
+Every number derived, which retires `PROFILE_SKILLS` and the hardcoded
+`842 / 37 / 5 DAYS` stats. It also becomes the entry point into the runner this
+phase shipped.
