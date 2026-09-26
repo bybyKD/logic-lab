@@ -8,7 +8,7 @@ import { MODULES } from '../data/modules'
 import { CodeBlock } from '../components/ui/CodeBlock'
 import { LanguageSwitcher } from '../components/code/LanguageSwitcher'
 import { CodeEditor } from '../components/code/CodeEditor'
-import { simulateCode, type SimResult } from '../utils/codeSimulator'
+import { getExecutionService, type ExecutionResult } from '../services/execution'
 import { ChoiceCard } from '../components/challenge/ChoiceCard'
 import { cn } from '../utils/cn'
 
@@ -19,7 +19,7 @@ export function ChallengePage() {
 
   const [language, setLanguage] = useState<LanguageId>('python')
   const [selected, setSelected] = useState<number | null>(null)
-  const [result, setResult] = useState<SimResult | null>(null)
+  const [result, setResult] = useState<ExecutionResult | null>(null)
   const [running, setRunning] = useState(false)
   const [editorValue, setEditorValue] = useState('')
 
@@ -52,13 +52,16 @@ export function ChallengePage() {
   const isCorrect = selected === challenge.answer
   const hasCode = Object.keys(challenge.code).length > 0
 
-  const runCode = () => {
+  const runCode = async () => {
     setRunning(true)
     setResult(null)
-    window.setTimeout(() => {
-      setResult(simulateCode(language, editorValue || (challenge.code[language] ?? '')))
-      setRunning(false)
-    }, 400)
+    setResult(
+      await getExecutionService().run({
+        language,
+        code: editorValue || (challenge.code[language] ?? ''),
+      }),
+    )
+    setRunning(false)
   }
 
   const nextChallenge = () => {
@@ -156,15 +159,7 @@ export function ChallengePage() {
                     setEditorValue(challenge.code[language] ?? '')
                     setResult(null)
                   }}
-                  result={
-                    result
-                      ? {
-                          output: result.output,
-                          duration: 0,
-                          error: result.error,
-                        }
-                      : null
-                  }
+                  result={result}
                   running={running}
                   height="260px"
                 />

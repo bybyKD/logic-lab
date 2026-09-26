@@ -1,3 +1,5 @@
 export * from './skills'
 export * from './course'
 export * from './people'
+export * from './attempts'
+export * from './random'

@@ -1,53 +1,35 @@
 import { useState } from 'react'
 import { type LanguageId } from '../../data/languages'
 import { ageExample } from '../../data/codeExamples'
-import { simulateCode, type SimResult } from '../../utils/codeSimulator'
-import { CodeEditor, type RunResult } from '../code/CodeEditor'
+import { getExecutionService, type ExecutionResult } from '../../services/execution'
+import { CodeEditor } from '../code/CodeEditor'
 import { SectionNumber } from '../ui/SectionNumber'
 import { ScrollReveal } from '../ui/ScrollReveal'
-
-function toRunResult(sim: SimResult): RunResult {
-  return {
-    output: sim.output,
-    duration: 60 + Math.round(Math.random() * 90),
-    error: sim.error,
-  }
-}
 
 export function InteractiveCode() {
   const [language, setLanguage] = useState<LanguageId>('python')
   const [code, setCode] = useState<string>(ageExample(20).python)
-  const [result, setResult] = useState<RunResult | null>(null)
+  const [result, setResult] = useState<ExecutionResult | null>(null)
   const [running, setRunning] = useState(false)
-  const [errorNote, setErrorNote] = useState<string | null>(null)
 
   const switchLanguage = (id: LanguageId) => {
     setLanguage(id)
     setCode(ageExample(20)[id])
     setResult(null)
-    setErrorNote(null)
   }
 
-  const run = () => {
+  // The service owns the "cannot evaluate this" case; the panel shows whatever it
+  // reports instead of deciding for itself.
+  const run = async () => {
     setRunning(true)
     setResult(null)
-    setErrorNote(null)
-    window.setTimeout(() => {
-      const sim = simulateCode(language, code)
-      if (sim && !sim.error) {
-        setResult(toRunResult(sim))
-      } else {
-        setResult({ output: '', duration: 0, error: true })
-        setErrorNote('Simulator tidak mengenali pola ini.')
-      }
-      setRunning(false)
-    }, 500)
+    setResult(await getExecutionService().run({ language, code }))
+    setRunning(false)
   }
 
   const reset = () => {
     setCode(ageExample(20)[language])
     setResult(null)
-    setErrorNote(null)
   }
 
   return (
@@ -96,9 +78,6 @@ export function InteractiveCode() {
               result={result}
               running={running}
             />
-            {errorNote && (
-              <p className="mt-3 font-mono text-xs text-warning">{errorNote}</p>
-            )}
           </ScrollReveal>
         </div>
       </div>

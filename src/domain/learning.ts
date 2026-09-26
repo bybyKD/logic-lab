@@ -48,7 +48,14 @@ export interface ActivityProgress {
   activityId: string
   studentId: string
   status: ProgressStatus
+  /** Highest score the grader returned, hints ignored. What the learner sees. */
   bestScore: number
+  /**
+   * `bestScore` discounted for hints revealed. This is what the `mastered`
+   * threshold is judged on, so a correct answer reached with every hint open
+   * does not silently certify mastery.
+   */
+  effectiveScore: number
   attempts: number
   lastActivityAt?: string
 }

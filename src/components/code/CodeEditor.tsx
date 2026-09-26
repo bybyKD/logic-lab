@@ -3,12 +3,7 @@ import Editor from '@monaco-editor/react'
 import { type LanguageId } from '../../data/languages'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { cn } from '../../utils/cn'
-
-export interface RunResult {
-  output: string
-  duration: number
-  error?: boolean
-}
+import type { ExecutionResult, ExecutionStatus } from '../../services/execution'
 
 interface CodeEditorProps {
   language: LanguageId
@@ -17,16 +12,27 @@ interface CodeEditorProps {
   onChange: (value: string) => void
   onRun: () => void
   onReset: () => void
-  result?: RunResult | null
+  result?: ExecutionResult | null
   running?: boolean
   className?: string
   readOnly?: boolean
   height?: string
 }
 
+const STATUS_STYLES: Record<ExecutionStatus, string> = {
+  ok: 'text-success',
+  failed: 'text-error',
+  error: 'text-error',
+  unsupported: 'text-warning',
+}
+
 /**
  * Premium Monaco-based code editor with language switcher,
  * Run / Reset controls, and an output panel.
+ *
+ * Takes an `ExecutionResult` rather than a local output/error shape, so the panel
+ * cannot disagree with the execution contract about what happened — in
+ * particular it can show `unsupported` honestly instead of a blank red output.
  */
 export function CodeEditor({
   language,
@@ -135,7 +141,7 @@ export function CodeEditor({
           <p className="technical-label">OUTPUT</p>
           {result && (
             <span className="font-mono text-[0.625rem] text-ink-600">
-              executed in {result.duration}ms
+              {result.status.toUpperCase()} · executed in {result.durationMs}ms
             </span>
           )}
         </div>
@@ -146,14 +152,16 @@ export function CodeEditor({
               Menjalankan program…
             </p>
           ) : result ? (
-            <pre
-              className={cn(
-                'whitespace-pre-wrap',
-                result.error ? 'text-error' : 'text-success',
+            <>
+              <pre className={cn('whitespace-pre-wrap', STATUS_STYLES[result.status])}>
+                {result.stdout || result.stderr}
+              </pre>
+              {result.note && result.status !== 'ok' && (
+                <p className="mt-2 font-sans text-xs leading-relaxed text-ink-500">
+                  {result.note}
+                </p>
               )}
-            >
-              {result.output}
-            </pre>
+            </>
           ) : (
             <p className="text-ink-600">Tekan <span className="text-accent-400">Run ▶</span> untuk mengeksekusi.</p>
           )}

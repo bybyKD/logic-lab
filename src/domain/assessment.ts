@@ -28,14 +28,30 @@ export interface TestCase {
   weight: number
 }
 
+/**
+ * Whether a test case was actually checked.
+ *
+ * `not-evaluated` exists so a limitation of the execution environment is never
+ * reported as a student failure. Treating an unrunnable case as `failed` would
+ * feed a false negative into mastery and could mark a learner as struggling for
+ * something the sandbox could not do.
+ */
+export type TestOutcomeStatus = 'passed' | 'failed' | 'not-evaluated'
+
 export interface TestOutcome {
   testCaseId: string
   name: string
   hidden: boolean
-  passed: boolean
+  status: TestOutcomeStatus
   expected: string
+  /** Empty when status is `not-evaluated`. */
   actual: string
   skillId?: string
+  /**
+   * Carried over from the test case so scoring does not have to re-look-up the
+   * case. Defaults to 1.
+   */
+  weight: number
 }
 
 /** One learner's one try at one activity. The atomic unit of evidence. */

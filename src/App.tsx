@@ -6,20 +6,23 @@ import { ChallengePage } from './pages/ChallengePage'
 import { ChallengesIndexPage } from './pages/ChallengesIndexPage'
 import { AdminPage } from './pages/AdminPage'
 import { AnimatedCursor } from './components/ui/AnimatedCursor'
+import { SessionProvider } from './services/session/SessionProvider'
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AnimatedCursor />
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/module/:id" element={<ModulePage />} />
-        <Route path="/challenge/:id" element={<ChallengePage />} />
-        <Route path="/challenges" element={<ChallengesIndexPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="*" element={<LandingPage />} />
-      </Routes>
+      <SessionProvider>
+        <AnimatedCursor />
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/module/:id" element={<ModulePage />} />
+          <Route path="/challenge/:id" element={<ChallengePage />} />
+          <Route path="/challenges" element={<ChallengesIndexPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<LandingPage />} />
+        </Routes>
+      </SessionProvider>
     </BrowserRouter>
   )
 }
