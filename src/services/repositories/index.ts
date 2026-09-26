@@ -125,6 +125,36 @@ export const submissionRepository = {
     writePersisted(PERSIST_KEYS.submissions, list)
     return delay(submission)
   },
+
+  /**
+   * Records a teacher's grade and its comment together.
+   *
+   * Both writes land in one call on purpose. A screen that saved the grade and
+   * then the comment could be closed or fail between them, leaving a graded
+   * submission with a half-written comment, and the queue would show it as done
+   * either way. A blank comment is stored as no comment rather than an empty row.
+   */
+  async gradeWithFeedback(submission: Submission, feedback: Feedback | null): Promise<void> {
+    const list = allSubmissions()
+    const index = list.findIndex((s) => s.id === submission.id)
+    if (index < 0) throw new Error(`submission ${submission.id} not found`)
+    list[index] = submission
+    writePersisted(PERSIST_KEYS.submissions, list)
+
+    if (feedback) {
+      const comments = allFeedback()
+      // Keyed on the submission so re-grading replaces the teacher's note
+      // instead of stacking a second copy of it on the same work.
+      const existing = comments.findIndex(
+        (f) => f.submissionId === feedback.submissionId && f.authorRole === feedback.authorRole,
+      )
+      if (existing >= 0) comments[existing] = feedback
+      else comments.push(feedback)
+      writePersisted(PERSIST_KEYS.feedback, comments)
+    }
+
+    return delay(undefined)
+  },
 }
 
 // ---------------------------------------------------------------- feedback
@@ -162,6 +192,28 @@ export const feedbackRepository = {
 
 // ----------------------------------------------------------------- course
 
+/**
+ * Activities the teacher has authored in the Content Studio, keyed by id.
+ *
+ * The seed stays immutable: an edit is an overlay, so "reset demo data" restores
+ * the original course without needing an undo log. `publishedActivityIds` is
+ * deliberately not used — publish state lives on the activity's own `status`, and
+ * keeping a second list of ids would mean two sources of truth for one fact.
+ */
+let authoredCache: Record<string, Activity> | null = null
+
+function authoredActivities(): Record<string, Activity> {
+  if (!authoredCache) {
+    authoredCache = readPersisted<Record<string, Activity>>(PERSIST_KEYS.authoredActivities, {})
+  }
+  return authoredCache
+}
+
+function withOverlays(activities: Activity[]): Activity[] {
+  const authored = authoredActivities()
+  return activities.map((a) => authored[a.id] ?? a)
+}
+
 export const courseRepository = {
   async getCourse() {
     return delay(getCourse())
@@ -172,11 +224,50 @@ export const courseRepository = {
   },
 
   async listActivities(sectionId: string): Promise<Activity[]> {
-    return delay(listSectionActivities(sectionId))
+    return delay(withOverlays(listSectionActivities(sectionId)))
   },
 
   async getActivity(activityId: string): Promise<Activity> {
-    return delay(findOrFail(ACTIVITIES, (a) => a.id === activityId, `activity ${activityId}`))
+    return delay(findOrFail(withOverlays(ACTIVITIES), (a) => a.id === activityId, `activity ${activityId}`))
+  },
+
+  /**
+   * Every activity in the course, seeded and authored, in section order.
+   *
+   * `listActivities` needs a section id, which forces a nested fetch to see the
+   * whole course. The teacher screens all want the whole thing, so this does the
+   * nesting once.
+   */
+  async listAllActivities(): Promise<Activity[]> {
+    const sections = listSections()
+    const nested = sections.map((section) => listSectionActivities(section.id))
+    return delay(withOverlays(nested.flat()))
+  },
+
+  /** Activities the teacher has changed. Powers the "your drafts" view. */
+  async listAuthored(): Promise<Activity[]> {
+    return delay(Object.values(authoredActivities()))
+  },
+
+  /**
+   * Writes an activity to the overlay.
+   *
+   * Ids are checked against the real course so a typo cannot create a phantom
+   * activity, and `order` is preserved rather than recomputed: the studio edits
+   * one activity, so it has no business renumbering the section around it.
+   */
+  async saveActivity(activity: Activity): Promise<Activity> {
+    findOrFail(ACTIVITIES, (a) => a.id === activity.id, `activity ${activity.id}`)
+    const authored = authoredActivities()
+    authored[activity.id] = activity
+    writePersisted(PERSIST_KEYS.authoredActivities, authored)
+    return delay(activity)
+  },
+
+  /** Publish or unpublish. Separate from `saveActivity` so the rail can toggle it. */
+  async setPublished(activityId: string, published: boolean): Promise<Activity> {
+    const activity = await courseRepository.getActivity(activityId)
+    return courseRepository.saveActivity({ ...activity, status: published ? 'published' : 'draft' })
   },
 }
 
@@ -212,6 +303,7 @@ export function resetDemoData(): void {
   attemptsCache = null
   submissionsCache = null
   feedbackCache = null
+  authoredCache = null
   for (const key of Object.values(PERSIST_KEYS)) {
     clearPersisted(key)
   }

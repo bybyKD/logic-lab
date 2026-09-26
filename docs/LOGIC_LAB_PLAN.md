@@ -1310,7 +1310,7 @@ ActivityProgress{activityId,studentId,status,bestScore,attempts,lastActivityAt}
 390px verified, no console errors.
 **Commit:** `feat(teacher): add derived classroom screen with cohort and misconception panels`
 
-### Phase 4 — Teacher loop: create → assign → observe → grade `[ ]`
+### Phase 4 — Teacher loop: create → assign → observe → grade `[x]`
 
 `/teacher/courses` · `/teacher/courses/:courseId` (sections, activities,
 publish/draft) · `/teacher/studio` + `/teacher/studio/:activityId` (**Content
@@ -1449,7 +1449,7 @@ describing work that was not done, or omitting work that was.
 | 1 | Domain model + seed | `[x]` | `8b7620d` |
 | 2 | Services | `[x]` | `d0f8815` |
 | 3 | Teacher classroom (§16) | `[x]` | `cdaceaa` |
-| 4 | Teacher loop | `[ ]` | — |
+| 4 | Teacher loop | `[x]` | *(this commit)* |
 | 5 | Student loop | `[ ]` | — |
 | 6 | Student dashboard | `[ ]` | — |
 | 7 | Cleanup + docs | `[ ]` | — |
@@ -1706,3 +1706,117 @@ it reads the Phase 2 derived functions, so no numbers are written down.
 
 **Next — Phase 4:** the teacher loop — courses, the Content Studio, assignments,
 submission review, and the gradebook.
+
+### Phase 4 — Teacher loop: create → assign → observe → grade
+
+**What shipped**
+
+- **Content Studio** (`/teacher/studio`, `/teacher/studio/:activityId`) — the full
+  authoring surface: instructions and learning objective, difficulty, time
+  estimate, points, related skills, allowed languages, per-language starter code,
+  visible + hidden test cases with weights and expected output, ordered hints, and a
+  rubric editor. The form holds a local copy and writes only on an explicit save, so
+  a teacher can abandon a half-typed activity without touching the course.
+- **Course builder** (`/teacher/courses/:courseId`) — sections and their activities
+  with publish / unpublish. Publishing is gated on the *same* validator the studio
+  uses, so an activity with a blocker cannot reach a class through a second route.
+- **Review queue** (`/teacher/assignments`) and **review** 
+  (`/teacher/assignments/:activityId/review`) — the work, a `Run tests` button
+  through `ExecutionService`, per-case results, rubric scoring per criterion, a
+  score override, and a feedback note. The score shown before saving is computed by
+  the pure `gradeSubmission`, so the preview and the stored grade cannot disagree.
+- **Gradebook** (`/teacher/gradebook`) — one row per enrolled student, one column per
+  activity that has submissions. Blank cell = nothing handed in; `pending` = waiting
+  on the teacher.
+- **Student detail** (`/teacher/classes/:classId/students`) — the roster, then one
+  learner in full: derived segment, skill mastery from their own attempts, every
+  submission, and the feedback given.
+
+**Key files**
+
+- `services/assessment/activityDraft.ts` — one validator for every kind, returning
+  field-keyed errors and warnings. Shared by the studio and the course builder.
+- `services/assessment/grading.ts` — `gradeSubmission` is pure: submission +
+  activity + teacher input → new `Submission` and optional `Feedback`. Score
+  precedence is explicit override → rubric percentage → submission score.
+- `services/assessment/reviewQueue.ts`, `services/assessment/gradebook.ts` — the two
+  derivations, both pure.
+- `services/repositories/index.ts` — the authored-activity overlay and
+  `gradeWithFeedback`.
+- `components/teacher/` — `TeacherPage` (shared chrome), `StudioFields`,
+  `useCourseOutline`, and the seven screens.
+
+**Deviations from the plan**
+
+- **There is no `Assignment` entity, and the plan did not ask for one.** Phase 4
+  routes say `/teacher/assignments`, but `Submission` already carries `activityId`
+  and the domain has no assignment record. Inventing one would add a second thing
+  that can disagree with the submission it points at. So an "assignment" here is an
+  activity that students have actually submitted work for, and the screen says so.
+  A course with no submissions has nothing to review, which is why those activities
+  are not listed.
+- **`publishedActivityIds` was dropped rather than used.** Phase 2 reserved a
+  localStorage key for it. `Activity.status` already is the publish state, so a
+  parallel list of ids would be a second source of truth for one fact.
+- **Rubrics were added to the three seeded code labs** (10 points: condition 6,
+  readable code 4) because the review screen needs a rubric to be worth building, and
+  the course had none. `seed.test.ts` asserts the criteria sum to `maxPoints` and
+  that the top level is full marks.
+- **Only 6 of the 10 rail destinations are live** (Classroom, Courses, Students,
+  Assignments, Gradebook, Content Studio). `Classes`, `Question Bank`, `Analytics`
+  and `Announcements` stay muted with the existing "on the roadmap" footer, because
+  §"Out of scope" requires roadmap items to appear as text and never as fake screens.
+  `Students` links to the one seeded class since there is no class index route.
+- **New activity creation is not implemented.** `saveActivity` validates the id
+  against the real course, so the studio edits and publishes existing seeded
+  activities; it does not add new ones. The overlay is keyed by id and would support
+  it, but a new activity also needs a section, an `order` within it, and a
+  `skillIds` choice, and inventing placement rules would be worse than leaving the
+  button off. Noted here so Phase 5/7 does not assume it exists.
+
+**Bugs found while building, not by review**
+
+- **The mobile page scrolled sideways to 554px on every studio route.** `PageHeader`'s
+  action group was `shrink-0` inside a wrapping flex row, so it set a floor on the
+  page width the row could not get below. The browser check found it at 390px; the
+  teacher rail's own `overflow-x-auto` was a red herring and clips correctly.
+- **A draft from localStorage could crash the validator.** Drafts are persisted JSON
+  read back without a schema check, so a `quiz` whose `questions` were missing
+  threw on `draft.questions.length` instead of reporting a problem. `validateKind`
+  now reads every list through `listField`, which reports a missing array as a
+  validation error. Three tests cover the malformed shapes.
+- **A grade could not be overwritten.** `feedbackRepository.save` always pushed, so
+  re-grading the same submission stacked a second copy of the teacher's note.
+  `submissionRepository.gradeWithFeedback` now upserts by `(submissionId,
+  authorRole)`, and writes the grade and its note in one call so a failure between
+  them cannot leave a graded submission with a missing comment.
+- **The review screen gave no confirmation on save.** The save button does not
+  disable itself on success, so there was no way to tell a saved grade from a click
+  that did nothing. There is now a `role="status"` live region.
+- **Zero-point lessons were flagged invalid.** The points rule required a positive
+  value for every activity, but seeded lessons are worth 0 because reading is not
+  assessed. The rule now applies only to assessed kinds.
+
+**Verification**
+
+- `npx tsc -b --force` clean; `npm run build` passes.
+- `npm test` — **257 passed, 0 failed** (12 files). The new
+  `services/repositories/authoring.test.ts` (14 tests) covers the two Phase 4 write
+  paths with a Map-backed `Storage` stub; one of them re-imports the module to prove
+  the overlay survives a reload rather than living in the module cache, and one
+  asserts `resetDemoData()` leaves the seeded array untouched.
+- Browser-checked with Playwright at 1440px and 390px: all 10 teacher routes render
+  with no console or page errors and no horizontal overflow — the 6 list screens, a
+  code-lab editor, a challenge editor, and a review route loaded directly by URL.
+- Both write paths driven in a real browser: publishing an activity and grading a
+  submission, each re-checked after a page reload to prove the localStorage overlay
+  round-trips rather than only living in memory.
+- Accessibility spot-check: no unlabelled form controls on the long studio form,
+  focus moves on Tab, and `prefers-reduced-motion: reduce` leaves no unguarded
+  animation.
+
+**Next — Phase 5:** the student loop — one kind-switched activity-runner route,
+Monaco plus `ExecutionService` with hidden cases masked until graded, progressive
+hints, submit → `Attempt`, then auto-feedback and teacher feedback. It should reuse
+`activityDraft`'s notion of a valid activity and the `gradeWithFeedback` write path
+this phase added.

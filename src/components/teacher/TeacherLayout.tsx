@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '../../utils/cn'
 
 /**
@@ -19,24 +19,42 @@ interface Destination {
 
 const DESTINATIONS: Destination[] = [
   { label: 'Classroom', to: '/teacher' },
-  { label: 'Courses', to: null },
+  { label: 'Courses', to: '/teacher/courses' },
+  // No class index exists yet — only one class is seeded — so this stays muted
+  // rather than linking somewhere that would have to invent a list.
   { label: 'Classes', to: null },
-  { label: 'Students', to: null },
-  { label: 'Assignments', to: null },
-  { label: 'Gradebook', to: null },
+  { label: 'Students', to: '/teacher/classes/class-logic-101-a/students' },
+  { label: 'Assignments', to: '/teacher/assignments' },
+  { label: 'Gradebook', to: '/teacher/gradebook' },
   { label: 'Question Bank', to: null },
   { label: 'Analytics', to: null },
-  { label: 'Content Studio', to: null },
+  { label: 'Content Studio', to: '/teacher/studio' },
   { label: 'Announcements', to: null },
 ]
 
 export function TeacherLayout({
   children,
-  activeLabel = 'Classroom',
+  activeLabel,
 }: {
   children: ReactNode
+  /**
+   * Overrides path-based highlighting. Only needed where a screen does not sit
+   * under its own rail entry — the classroom, which is `/teacher` itself.
+   */
   activeLabel?: string
 }) {
+  const { pathname } = useLocation()
+
+  // Prefix match, so `/teacher/courses/abc` still lights up Courses. `/teacher`
+  // is the one entry that has to match exactly, or every teacher page would also
+  // highlight Classroom.
+  const isCurrent = (destination: Destination): boolean => {
+    if (activeLabel !== undefined) return destination.label === activeLabel
+    if (!destination.to) return false
+    if (destination.to === '/teacher') return pathname === '/teacher'
+    return pathname === destination.to || pathname.startsWith(`${destination.to}/`)
+  }
+
   return (
     <div className="min-h-screen bg-lab-900">
       <div className="mx-auto flex max-w-[1560px] gap-0 px-0 lg:px-8">
@@ -47,7 +65,7 @@ export function TeacherLayout({
           <p className="technical-label px-3">TEACHER</p>
           <ul className="mt-4 flex flex-col gap-0.5">
             {DESTINATIONS.map((destination) => {
-              const isActive = destination.label === activeLabel
+              const isActive = isCurrent(destination)
               return (
                 <li key={destination.label}>
                   {destination.to ? (
@@ -90,26 +108,39 @@ export function TeacherLayout({
           </p>
         </nav>
 
-        {/* Rail is a horizontal scroller on small screens, same information. */}
+        {/* Rail is a horizontal scroller on small screens, same information —
+            all of it, so the mobile nav is not quietly missing sections. */}
         <div className="min-w-0 flex-1">
           <div className="border-b border-lab-800 px-5 py-3 lg:hidden">
             <ul className="flex gap-1 overflow-x-auto">
-              {DESTINATIONS.slice(0, 6).map((destination) => (
-                <li key={destination.label} className="shrink-0">
-                  {destination.to ? (
+              {DESTINATIONS.map((destination) => {
+                const isActive = isCurrent(destination)
+                if (!destination.to) {
+                  return (
+                    <li key={destination.label} className="shrink-0">
+                      <span className="rounded-pill border border-lab-800 px-3 py-1.5 font-mono text-[0.625rem] text-ink-700">
+                        {destination.label}
+                      </span>
+                    </li>
+                  )
+                }
+                return (
+                  <li key={destination.label} className="shrink-0">
                     <NavLink
                       to={destination.to}
-                      className="rounded-pill border border-lab-700 px-3 py-1.5 font-mono text-[0.625rem] text-ink-300"
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'rounded-pill border px-3 py-1.5 font-mono text-[0.625rem]',
+                        isActive
+                          ? 'border-accent-400/50 bg-accent-400/10 text-accent-300'
+                          : 'border-lab-700 text-ink-300',
+                      )}
                     >
                       {destination.label}
                     </NavLink>
-                  ) : (
-                    <span className="rounded-pill border border-lab-800 px-3 py-1.5 font-mono text-[0.625rem] text-ink-700">
-                      {destination.label}
-                    </span>
-                  )}
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           </div>
           {children}

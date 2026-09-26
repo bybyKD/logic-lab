@@ -16,6 +16,7 @@ import type {
   LessonBlock,
   QuizActivity,
   QuizQuestion,
+  Rubric,
   Section,
 } from '../../domain'
 
@@ -290,6 +291,71 @@ function buildInteractive(
   }
 }
 
+/**
+ * Rubric for a code lab, so the teacher review screen has something to score.
+ *
+ * Phase 4's review flow calls for rubric scoring, but no activity in the course
+ * carried a rubric, which would have left that part of the screen permanently
+ * empty. These are the two things a teacher actually judges in a two-test code
+ * lab: whether the condition is right, and whether the code reads like the
+ * instruction.
+ */
+function buildCodeLabRubric(id: string): Rubric {
+  return {
+    id: `${id}-rubric`,
+    title: 'Code lab review',
+    maxPoints: 10,
+    criteria: [
+      {
+        id: `${id}-rc-condition`,
+        label: 'Condition',
+        description: 'The comparison matches the boundary the instructions ask for.',
+        maxPoints: 6,
+        levels: [
+          {
+            label: 'Correct',
+            points: 6,
+            descriptor: 'Right operator, right boundary, including the equality case.',
+          },
+          {
+            label: 'Off by one',
+            points: 3,
+            descriptor: 'Right shape, wrong boundary — `>` where `>=` was needed.',
+          },
+          {
+            label: 'Not a comparison',
+            points: 0,
+            descriptor: 'Assigns in the condition, so the branch is always taken.',
+          },
+        ],
+      },
+      {
+        id: `${id}-rc-readability`,
+        label: 'Readable code',
+        description: 'Names the values, keeps the else branch, no dead code.',
+        maxPoints: 4,
+        levels: [
+          {
+            label: 'Clear',
+            points: 4,
+            descriptor: 'Names the input, both branches are present and obvious.',
+          },
+          {
+            label: 'Works but tangled',
+            points: 2,
+            descriptor: 'Correct output, but the intent has to be reverse-engineered.',
+          },
+          {
+            label: 'Unreadable',
+            points: 0,
+            descriptor: 'Single letters, no else, or leftover scaffolding.',
+          },
+        ],
+      },
+    ],
+  }
+}
+
 function buildCodeLab(
   sectionId: string,
   id: string,
@@ -341,6 +407,7 @@ function buildCodeLab(
       },
     ],
     hints,
+    rubric: buildCodeLabRubric(id),
   }
 }
 

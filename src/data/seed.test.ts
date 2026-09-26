@@ -92,6 +92,37 @@ describe('seed: course graph', () => {
     }
   })
 
+  it('gives every code lab a rubric the review screen can actually score', () => {
+    // Phase 4's review flow asks for rubric scoring. Without this the rubric part
+    // of that screen could never render, so it is asserted rather than assumed.
+    const codeLabs = ACTIVITIES.filter((a) => a.kind === 'codeLab')
+    expect(codeLabs.length).toBeGreaterThan(0)
+
+    for (const activity of codeLabs) {
+      const rubric = activity.rubric
+      expect(rubric, `${activity.id} has no rubric`).toBeDefined()
+      if (!rubric) continue
+
+      expect(rubric.criteria.length).toBeGreaterThan(0)
+      expect(rubric.title).toBeTruthy()
+
+      const summed = rubric.criteria.reduce((sum, c) => sum + c.maxPoints, 0)
+      expect(summed, `${activity.id} criteria do not add up to maxPoints`).toBe(rubric.maxPoints)
+
+      for (const criterion of rubric.criteria) {
+        expect(criterion.levels.length).toBeGreaterThan(1)
+        for (const level of criterion.levels) {
+          expect(level.descriptor).toBeTruthy()
+          expect(level.points).toBeGreaterThanOrEqual(0)
+          // A level must be choosable from the criterion, never above its ceiling.
+          expect(level.points).toBeLessThanOrEqual(criterion.maxPoints)
+        }
+        // The top level is the full mark, so "correct" is expressible.
+        expect(Math.max(...criterion.levels.map((l) => l.points))).toBe(criterion.maxPoints)
+      }
+    }
+  })
+
   it('resolves every interactive snippet and every answer id', () => {
     for (const activity of ACTIVITIES) {
       if (activity.kind === 'interactive') {

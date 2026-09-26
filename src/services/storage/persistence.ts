@@ -63,7 +63,12 @@ export const PERSIST_KEYS = {
   submissions: 'submissions',
   feedback: 'feedback',
   session: 'session',
-  /** Activity ids authored in Content Studio (Phase 4). */
+  /**
+   * Activities authored in the Content Studio (Phase 4), keyed by id.
+   *
+   * Phase 2 also reserved `publishedActivityIds`. Phase 4 dropped it: publish
+   * state is the activity's own `status` field, and a parallel list of ids would
+   * be a second source of truth for one fact.
+   */
   authoredActivities: 'authoredActivities',
-  publishedActivityIds: 'publishedActivityIds',
 } as const
