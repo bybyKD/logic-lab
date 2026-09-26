@@ -9,49 +9,8 @@ import { CodeBlock } from '../components/ui/CodeBlock'
 import { ageExample } from '../data/codeExamples'
 import type { LanguageId } from '../data/languages'
 import { ProgressRing } from '../components/dashboard/ProgressRing'
+import { LESSON_SAMPLES } from '../data/seed/course'
 import { cn } from '../utils/cn'
-
-const LESSON_SAMPLES: Record<string, string[]> = {
-  '4': [
-    `# 1. Percabangan dasar (Python)
-umur = 20
-
-if umur >= 18:
-    print("Dewasa")
-else:
-    print("Remaja")`,
-    `# 2. Beberapa kondisi
-nilai = 85
-
-if nilai >= 90:
-    print("A")
-elif nilai >= 75:
-    print("B")
-else:
-    print("C")`,
-    `# 3. Kombinasi logika
-umur = 19
-punya_ktp = True
-
-if punya_ktp and umur >= 18:
-    print("Boleh daftar")`,
-  ],
-  '5': [
-    `# 1. Perulangan for (Python)
-for i in range(5):
-    print(i)`,
-    `# 2. Akumulator
-total = 0
-for i in range(1, 6):
-    total += i
-print(total)`,
-    `# 3. Perulangan while
-n = 5
-while n > 0:
-    print(n)
-    n -= 1`,
-  ],
-}
 
 export function ModulePage() {
   const { id } = useParams()

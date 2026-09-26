@@ -1210,7 +1210,7 @@ Reusable as-is: Monaco wrapper, trace/debugger UI, `LogicFlowVisualizer`,
   `src/components/landing/Hero.tsx`, `src/components/logic/LogicFlowVisualizer.tsx`,
   and `src/components/ui/StickyLogicShowcase.tsx`.
 
-### Phase 1 — Domain model + seed `[ ]`
+### Phase 1 — Domain model + seed `[x]`
 
 **Goal:** separate content from learner state, and define entities the UI can
 render instead of hardcoded arrays.
@@ -1446,7 +1446,7 @@ describing work that was not done, or omitting work that was.
 
 | Phase | Scope | Status | Commit |
 |---|---|---|---|
-| 1 | Domain model + seed | `[ ]` | — |
+| 1 | Domain model + seed | `[x]` | `feat(domain)` |
 | 2 | Services | `[ ]` | — |
 | 3 | Teacher classroom (§16) | `[ ]` | — |
 | 4 | Teacher loop | `[ ]` | — |
@@ -1455,7 +1455,6 @@ describing work that was not done, or omitting work that was.
 | 7 | Cleanup + docs | `[ ]` | — |
 
 ### Findings that shaped the plan
-
 - `Module.progress` / `.completed` / `.locked` are hardcoded on the content
   object (`src/data/modules.ts`) — the single biggest structural blocker, fixed
   by moving learner state to `Enrollment`.
@@ -1469,3 +1468,62 @@ describing work that was not done, or omitting work that was.
   landing-only `InteractiveCode`), so wrapping it in Phase 2 is cheap.
 - `ChallengePage` renders only `choices`, so `predict` and `choose` look
   identical today.
+
+### Phase 1 — Domain model + seed (done)
+
+**Shipped**
+
+- `src/domain/` — `people.ts` (Person/Student/Teacher/Class/Enrollment),
+  `course.ts` (Course/Section/`Activity` as a 8-way discriminated union),
+  `assessment.ts` (TestCase/TestOutcome/Attempt/Submission/Feedback/Rubric/
+  Grade), `learning.ts` (Skill/SkillMastery/ActivityProgress/Misconception),
+  plus a barrel `index.ts`. Types only, zero runtime.
+- `src/data/seed/skills.ts` — 31 skills across 7 domain roots, as a DAG
+  (`control-flow > conditionals > if-else`, `control-flow > loops > for-loops >
+  while-loops > nested-loops`). Language-agnostic on purpose.
+- `src/data/seed/course.ts` — builds 1 Course → 10 Sections → 46 Activities
+  (10 lessons, 2 interactive, 3 code labs, 1 quiz, 30 challenges) from the
+  existing `MODULES` / `CHALLENGES` / `ageExample`. Also holds `SNIPPETS` (3
+  code examples addressed by id) and `LESSON_SAMPLES`.
+- `src/data/seed/people.ts` — 2 teachers, 80 students (from `PARTICIPANTS`),
+  1 class, 42 enrollments so "42 students" is a real filtered count.
+- `src/data/selectors.ts` — derived reads over the seed graph.
+- `ModulePage.tsx` now imports `LESSON_SAMPLES` from the seed instead of
+  defining it inline. That was the only page touched; **no visual change**.
+
+**Decisions taken while building**
+
+- Challenge answers are now `correctChoiceId` strings over `ChallengeChoice[]`
+  instead of an index into `choices: string[]`. The domain is fixed even though
+  the legacy `Challenge.answer: number` still exists — Phase 7 deletes it.
+- `TestCase.input` exists in the model but the pattern-matching simulator can
+  only evaluate one fixed program, so seeded hidden test cases carry an `input`
+  they cannot be executed against. This is deliberate: Phase 2's execution
+  service reports those as `unsupported` rather than faking a pass, and the real
+  sandbox in a later phase makes them meaningful.
+- Per-challenge skill overrides (`CHALLENGE_SKILL_OVERRIDES`) exist because
+  otherwise every challenge in a module reports the same skills and mastery
+  cannot be attributed to a single concept.
+- `assignment`, `project` and `simulation` are **modelled but not seeded** —
+  those are authored by a teacher in Content Studio (Phase 4) rather than
+  invented here. `seed` covers lesson/interactive/codeLab/challenge/quiz.
+- **Deviation from plan:** the deterministic `mulberry32` PRNG and seeded
+  `Attempt` records were *not* built in Phase 1. Progress is derived from
+  attempts, so there is nothing random to do until mastery exists. Moved to
+  Phase 2, where it belongs, together with the attempt distribution that should
+  land near the 29/8/5 cohort split.
+
+**Verification**
+
+- `npx tsc -b --force` clean; `npm run build` passes (502 modules).
+- Referential-integrity sweep over the whole seed graph (skill parents, course
+  skill refs, section↔activity back-references, every activity in exactly one
+  section, snippet refs, code-lab starter code per language, presence of both a
+  visible and a hidden test case, challenge/quiz answer ids): **0 problems**.
+- Headless render of `/`, `/dashboard`, `/module/4`, `/challenges`, `/admin`:
+  all render, no app console errors. `/module/4` still shows its 3 lesson
+  samples and 4 challenges, now sourced from the seed.
+
+**Next — Phase 2:** execution service, repositories, mastery, misconception
+detector, persistence, session, and the seeded attempt distribution behind
+Vitest.
