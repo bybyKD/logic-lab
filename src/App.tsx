@@ -1,8 +1,5 @@
 import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { LandingPage } from './pages/LandingPage'
-import { ModulePage } from './pages/ModulePage'
-import { ChallengePage } from './pages/ChallengePage'
-import { ChallengesIndexPage } from './pages/ChallengesIndexPage'
 import { ClassroomScreen } from './components/teacher/ClassroomScreen'
 import { CoursesScreen } from './components/teacher/CoursesScreen'
 import { CourseBuilderScreen } from './components/teacher/CourseBuilderScreen'
@@ -17,6 +14,10 @@ import { ActivityRunnerScreen } from './features/student/activity-runner/Activit
 import { LearnDashboardScreen } from './features/student/dashboard/LearnDashboardScreen'
 import { AnimatedCursor } from './components/ui/AnimatedCursor'
 import { SessionProvider } from './services/session/SessionProvider'
+import {
+  LegacyChallengeRedirect,
+  LegacyModuleRedirect,
+} from './components/legacy/LegacyRouteRedirect'
 
 export default function App() {
   return (
@@ -33,14 +34,20 @@ export default function App() {
           */}
           <Route path="/learn" element={<LearnDashboardScreen />} />
           <Route path="/dashboard" element={<Navigate to="/learn" replace />} />
-          <Route path="/module/:id" element={<ModulePage />} />
-          <Route path="/challenge/:id" element={<ChallengePage />} />
-          <Route path="/challenges" element={<ChallengesIndexPage />} />
+          {/*
+            Legacy student URLs, now redirects rather than screens. Each of these
+            rendered its own copy of progress and challenge data before Phases 3-6,
+            so serving them live meant two dashboards a learner could reach. The
+            resolver derives the target from the seed; anything it cannot map lands
+            on `/learn`, which is the same place an unknown path already goes.
+          */}
+          <Route path="/module/:id" element={<LegacyModuleRedirect />} />
+          <Route path="/challenge/:id" element={<LegacyChallengeRedirect />} />
+          <Route path="/challenges" element={<Navigate to="/learn" replace />} />
           {/*
             The student runner. One route for every activity kind — the screen
             switches on `activity.kind`, so a new kind is a new branch rather than
-            a new URL. The legacy student routes above stay live until Phase 7
-            turns them into redirects.
+            a new URL. It is the destination for every legacy student route above.
           */}
           <Route
             path="/learn/c/:courseId/s/:sectionId/a/:activityId"

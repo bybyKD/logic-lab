@@ -102,7 +102,15 @@ export interface CodeLabActivity extends ActivityBase {
   expectedBehavior: string
 }
 
-export type ChallengeType = 'predict' | 'choose' | 'debug' | 'algorithm' | 'truth'
+/**
+ * The challenge kinds the runner can actually render.
+ *
+ * `truth` used to sit in this union, but nothing ever produced one and
+ * `ChallengeRunner` had no branch for it, so it was an option that could only ever
+ * reach the `no activity found` fallback. `algorithm` and `debug` are real: Phase 5
+ * seeded both and the runner renders them.
+ */
+export type ChallengeType = 'predict' | 'choose' | 'debug' | 'algorithm'
 
 export interface ChallengeChoice {
   id: string

@@ -112,11 +112,16 @@ export const SNIPPETS_BY_ID: Record<string, CodeSnippet> = Object.fromEntries(
 )
 
 /**
- * Per-module practice examples, moved here from `ModulePage.tsx` where they were
- * hardcoded inside a page component. Content belongs to the course, not a view.
+ * Code examples for the lessons of the two sections that have their own.
+ *
+ * This used to be `LESSON_SAMPLES: Record<string, string[]>`, keyed by a legacy
+ * module number as a *string*, and read from `ModulePage.tsx` — a view concern
+ * that had been carried into the seed. The examples are course content and stay;
+ * what went is the module-number lookup, so the key is now the section id the
+ * rest of the model uses and the record is private to this file.
  */
-export const LESSON_SAMPLES: Record<string, string[]> = {
-  '4': [
+const LESSON_CODE_EXAMPLES: Record<string, string[]> = {
+  'sec-04': [
     `# 1. Percabangan dasar (Python)
 umur = 20
 
@@ -140,7 +145,7 @@ punya_ktp = True
 if punya_ktp and umur >= 18:
     print("Boleh daftar")`,
   ],
-  '5': [
+  'sec-05': [
     `# 1. Perulangan for (Python)
 for i in range(5):
     print(i)`,
@@ -204,14 +209,35 @@ const CHALLENGE_GUIDANCE: Record<ChallengeType, string> = {
   predict: 'Predict the output first, then compare it with the actual output.',
   choose: 'Select one answer, then read the explanation.',
   debug: 'Find the faulty line, then explain what it should be.',
-  truth: 'Work out the value of the expression step by step.',
   algorithm: 'Arrange the steps into a working order.',
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
+/**
+ * Seeded ids for the two legacy shapes, derived rather than hardcoded.
+ *
+ * The old student routes address content by a module number and a challenge
+ * number, while the real course addresses it by section and activity id. Both
+ * ids are computed here so the `/module/:id` and `/challenge/:id` redirects
+ * cannot invent a format that the seed does not actually produce — a lookup that
+ * silently returns nothing is much harder to notice than a missing page.
+ */
+export function seededSectionId(moduleId: number): string {
+  return `sec-${pad(moduleId)}`
+}
+
+export function seededChallengeActivityId(challenge: Pick<Challenge, 'id' | 'moduleId'>): string {
+  return `act-s${pad(challenge.moduleId)}-c${challenge.id}`
+}
+
+/** The lesson that opens every section. */
+export function seededLessonActivityId(moduleId: number): string {
+  return `act-s${pad(moduleId)}-lesson`
+}
+
 function buildLesson(module: Module, sectionId: string): LessonActivity {
-  const samples = LESSON_SAMPLES[String(module.id)]
+  const samples = LESSON_CODE_EXAMPLES[sectionId]
   const blocks: LessonBlock[] = [
     {
       kind: 'text',
@@ -245,7 +271,7 @@ function buildLesson(module: Module, sectionId: string): LessonActivity {
   })
 
   return {
-    id: `act-s${pad(module.id)}-lesson`,
+    id: seededLessonActivityId(module.id),
     sectionId,
     kind: 'lesson',
     title: module.title,
@@ -423,7 +449,7 @@ function toChoices(challenge: Challenge): { choices: ChallengeChoice[]; correctC
 function buildChallenge(challenge: Challenge, sectionId: string): ChallengeActivity {
   const { choices, correctChoiceId } = toChoices(challenge)
   return {
-    id: `act-s${pad(challenge.moduleId)}-c${challenge.id}`,
+    id: seededChallengeActivityId(challenge),
     sectionId,
     kind: 'challenge',
     challengeType: challenge.type,
@@ -611,7 +637,7 @@ function buildCourse() {
   const activities: Activity[] = []
 
   MODULES.forEach((module, index) => {
-    const sectionId = `sec-${pad(module.id)}`
+    const sectionId = seededSectionId(module.id)
     const sectionActivities: Activity[] = [buildLesson(module, sectionId)]
 
     if (module.id === 4) {

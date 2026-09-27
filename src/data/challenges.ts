@@ -1,6 +1,11 @@
 import type { LanguageId } from './languages'
 
-export type ChallengeType = 'predict' | 'debug' | 'choose' | 'truth'
+/**
+ * The kinds the seed actually contains. Kept in step with `domain/course.ts`, which
+ * is the type the seeded `ChallengeActivity` uses — a `truth` challenge here could
+ * never be built into a runnable activity.
+ */
+export type ChallengeType = 'predict' | 'debug' | 'choose'
 
 export interface Challenge {
   id: number
@@ -9,7 +14,7 @@ export interface Challenge {
   prompt: string
   code: Partial<Record<LanguageId, string>>
   choices?: string[]
-  answer: number // index into choices; or for debug: 'fixed'
+  answer: number // index into `choices`
   explanation: string
   type: ChallengeType
   difficulty: 'Mudah' | 'Menengah' | 'Sulit'

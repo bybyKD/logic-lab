@@ -1345,12 +1345,18 @@ DAG). **Every number derived**; deletes `PROFILE_SKILLS` and the hardcoded
 data exists anywhere in the model (see the Phase 6 log).
 **Commit:** `feat(student): rebuild dashboard from derived progress and skill mastery`
 
-### Phase 7 — Cleanup, migration, docs `[ ]`
+### Phase 7 — Cleanup, migration, docs `[x]`
 
 Remove `LESSON_SAMPLES`, `PROFILE_SKILLS`, literal stats, the dead `debug`/`truth`
 branches and the `answer: 'fixed'` comment. Redirect `/dashboard`→`/learn`,
 `/module/:id`→section, `/challenge/:id`→activity, `/challenges`→`/learn`; delete
-superseded `components/admin/*`. Optionally re-point the landing page's
+superseded `components/admin/*`.
+
+**Shipped, with three corrections to the scope above** — see the Phase 7 log:
+`PROFILE_SKILLS`, the literal stats, and the `/dashboard` redirect were already
+done in Phase 6; `debug` is no longer dead (Phase 5 seeded and implemented it), so
+only `truth` was removed; and `LESSON_SAMPLES`'s *content* was kept while its
+module-number-keyed lookup was removed. Optionally re-point the landing page's
 `SolveChallenge` / `DebuggingSection` at the shared activity renderer — skipped if
 it risks the landing page. Docs: `README.md` (missing today), `docs/architecture.md`,
 `docs/data-model.md`, `docs/execution.md` (incl. sandbox research note). No empty
@@ -1363,8 +1369,8 @@ exist.
 ```text
 /                                                  landing (untouched marketing)
 /learn                                             student dashboard
-/learn/c/:courseId                                 course overview
-/learn/c/:courseId/s/:sectionId                    section overview
+/learn/c/:courseId                                 course overview (NOT BUILT)
+/learn/c/:courseId/s/:sectionId                    section overview (NOT BUILT)
 /learn/c/:courseId/s/:sectionId/a/:activityId      activity runner
 /teacher                                           classroom (§16)
 /teacher/courses  /teacher/courses/:courseId       builder + publish
@@ -2011,3 +2017,94 @@ submission review, and the gradebook.
 `docs/data-model.md` + `docs/execution.md`. Note that
 `src/components/landing/Hero.tsx` still links to `/dashboard` and is user-modified,
 so repointing it is left to that phase.
+
+### Phase 7 — Cleanup, migration, docs
+
+**Shipped.** Three items in the scope were already done in Phase 6, one was
+obsolete, and one needed correcting rather than deleting.
+
+- **`PROFILE_SKILLS`, the literal `842 / 37 / 5 DAYS` stats, and the
+  `/dashboard`→`/learn` redirect were already Phase 6 work.** They are repeated
+  in the Phase 7 scope list above; no code changed for them this phase. The route
+  map above has been updated so `/admin`, `/module/:id`, `/challenge/:id` and
+  `/challenges` are the Phase 7 redirects.
+- **`debug` is not dead and was not removed.** The plan predates Phase 5, which
+  seeded a real `debug` challenge (`act-s10-dbg-accumulator`) and a real
+  `algorithm` one, both rendered by `ChallengeRunner`. Only **`truth` was dead**:
+  it was in the `ChallengeType` union in both `domain/course.ts` and
+  `data/challenges.ts` and had a guidance string in the seed, but nothing ever
+  produced a `truth` challenge and the runner had no branch for it, so it could
+  only ever reach the not-found fallback. Removed from all three places.
+- **The `answer: 'fixed'` comment was a comment, not a value.** `data/challenges.ts`
+  declared `answer: number // index into choices; or for debug: 'fixed'`, but all
+  30 challenges carry a numeric index — the clause described a `'fixed'` value the
+  `number` type could not hold. Trimmed to `// index into \`choices\``.
+- **`LESSON_SAMPLES` was content, not cruft, so it was corrected rather than
+  deleted.** The two lessons it feeds (`sec-04`, `sec-05`) are real seeded
+  activities with real code examples; deleting it would have emptied two lessons.
+  What was actually wrong was the *lookup*: a `Record<string, string[]>` keyed by a
+  legacy module number as a string, read from `ModulePage.tsx` — a view concern
+  carried into the seed. It is now `LESSON_CODE_EXAMPLES`, private to
+  `data/seed/course.ts` and keyed by the section id the rest of the model uses.
+- **Redirect targets are derived, never written out.** `legacyRoutes.ts` imports
+  `seededSectionId` / `seededLessonActivityId` / `seededChallengeActivityId` from
+  the seed — the same functions that build the ids — rather than re-implementing
+  the `act-sNN-cNN` format. A hand-written copy would be a second place to get it
+  wrong, and a wrong id does not fail loudly: it lands on the catch-all route and
+  reads as a broken link rather than a bug.
+- **A test caught a real redirect bug.** `Number('1e3')` is a valid integer, so
+  `/module/1e3` resolved to `sec-1000` — a section that does not exist. Legacy ids
+  are parsed with `/^\d+$/` instead, so `1e3`, `0x4`, `4.5` and whitespace are all
+  refused and fall back to `/learn`.
+- **`/module/:id` lands on the section's first activity, not a section page.**
+  The end-state map lists `/learn/c/:courseId/s/:sectionId`, but that screen does
+  not exist. Redirecting to it would have converted a working legacy link into a
+  dead one, so the module redirect resolves to the lesson that opens the section.
+  Building the course and section overviews is still open work.
+- **Deleted:** `ModulePage.tsx`, `ChallengePage.tsx`, `ChallengesIndexPage.tsx`,
+  `AdminPage.tsx`, and all of `components/admin/` (`AdminDashboard`,
+  `ParticipantDetail`, `ParticipantTable`, `toStudentRow`).
+  `AdminPage` was already unrouted — `/admin` pointed at `AdminRedirect` — and
+  `ParticipantDetail` / `ParticipantTable` were already imported by nothing.
+  `toStudentRow` existed only to adapt derived rows for the admin components and
+  said so in its own doc comment; its `describe` block came out of
+  `classroomViewModel.test.ts` with it.
+- **Two legacy data files stay, deliberately.** `data/modules.ts` and
+  `data/challenges.ts` are the source the seed builds all 48 activities from —
+  deleting them would delete the course. They are content now, not UI, and the
+  lesson that reads them directly is gone. `data/participants.ts` likewise stays
+  because `data/seed/people.ts` derives `STUDENTS` from it.
+- **The landing page was left alone.** `SolveChallenge` and `DebuggingSection`
+  still have their own challenge UI rather than the shared runner, which the plan
+  listed as optional. `AlgorithmBuilder` and `ChoiceCard` are shared with the
+  runner, so reusing the renderer there is a follow-up, not a Phase 7 deliverable.
+- **Two pre-existing orphans were left:** `components/ui/GlassPanel.tsx` and
+  `GridBackground.tsx` have no importers. They were already unreferenced at HEAD
+  and are unrelated to the legacy flow, so removing them is a separate call.
+- **No `ai.md` or `contributing.md`**, per the plan. No AI feature and no
+  contributor exists yet.
+- **Tests: 368 across 19 files**, up from 370 across 18. Net −2: 10 tests went
+  with the deleted `toStudentRow` adapter, 8 came in with `legacyRoutes.test.ts`.
+  Verified: `tsc -b` clean, `vite build` clean, and all routes swept in Chromium
+  at 1440px and 390px with zero horizontal overflow and no console errors.
+
+**Docs written:** `README.md`, `docs/architecture.md`, `docs/data-model.md`,
+`docs/execution.md`. The execution doc records three limitations of the current
+runner that were not written down anywhere, the most important being that
+`simulateCode` receives a `LanguageId` and then does `void language` — it never
+reads it, so a "run" of Java is a Python-shaped pattern match that happens to be
+labelled Java. The sandbox research note concludes that in-browser WASM (Pyodide)
+should be evaluated for Python before any server-side runner is built, because
+three of the four course languages have no in-browser runtime and Python lessons
+are a large share of the content.
+
+**What the next phase should know:** the course and section overview screens in
+the end-state map are the largest remaining gap in the student experience — the
+dashboard links straight to activities and there is no way to see a section as a
+whole. `/learn/c/:courseId` and `/learn/c/:courseId/s/:sectionId` are the two
+routes to build. `Activity` also has three unseeded kinds (`assignment`,
+`project`, `simulation`) that are modelled and unpopulated; the runner has no
+branch for them. There is no component test renderer in the project — no
+`@testing-library`, no jsdom — so all tests are pure logic and components are
+verified by building and by opening routes. That is the main testing limitation to
+address if the UI surface keeps growing.

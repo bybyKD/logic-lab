@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ACTIVITIES, ENROLLMENTS, LAB_CLASS, STUDENTS, COHORT_PLAN } from '../../data/seed'
 import { FOCUS_ACTIVITY_ID, buildSeedAttempts } from '../../data/seed/attempts'
-import { toAdminStats, toStudentRow, toStudentRows } from '../admin/toStudentRow'
 import {
   buildClassroom,
   relativeTime,
@@ -158,98 +157,5 @@ describe('relativeTime', () => {
   it('degrades to a dash for missing or unparseable input', () => {
     expect(relativeTime('', NOW)).toBe('—')
     expect(relativeTime('nonsense', NOW)).toBe('—')
-  })
-})
-
-describe('toStudentRow', () => {
-  it('maps a derived classroom row onto the legacy admin shape', () => {
-    const source = data().rows.find((r) => r.segment === 'struggling')!
-    const row = toStudentRow(source, NOW)
-
-    expect(row.id).toBe(source.student.id)
-    expect(row.name).toBe(source.student.name)
-    expect(row.segment).toBe('struggling')
-    expect(row.passRate).toBe(source.passRate)
-    expect(row.attempts).toBe(source.attempts)
-    expect(row.score).toBe(source.bestScore)
-    expect(row.challenges).toBe(source.attempts)
-    expect(row.cohort).toBe(source.student.cohort)
-  })
-
-  it('uses the legacy day-granularity date format, not the compact table one', () => {
-    const mapped = toStudentRows(data().rows, NOW)
-    for (const row of mapped) {
-      expect(row.lastActive).toMatch(/^(today|yesterday|never|\d+ days ago)$/)
-    }
-  })
-
-  it('agrees with the classroom about who is struggling', () => {
-    // The adapter must not invent a second definition: this is the whole point
-    // of feeding it StudentRow rather than raw engagement.
-    const { rows } = data()
-    const mapped = toStudentRows(rows, NOW)
-    expect(mapped.filter((r) => r.segment === 'struggling')).toHaveLength(
-      COHORT_PLAN.struggling,
-    )
-  })
-
-  it('reports progress per student, not the class average', () => {
-    const mapped = toStudentRows(data().rows, NOW)
-    for (const row of mapped) {
-      expect(row.progress).toBe(row.segment === 'completed' ? 100 : 0)
-    }
-  })
-
-  it('only gives full progress to students who completed the focus activity', () => {
-    const { rows, summary } = data()
-    for (const row of toStudentRows(rows, NOW)) {
-      if (row.segment === 'completed') expect(summary.focusCompletionRate).toBeGreaterThan(0)
-    }
-  })
-
-  it('maps segments onto the legacy status union', () => {
-    const mapped = toStudentRows(data().rows, NOW)
-    for (const row of mapped) {
-      expect(['Active', 'Asisten', 'Tidak Aktif']).toContain(row.status)
-      if (row.segment === 'struggling') expect(row.status).toBe('Asisten')
-      if (row.segment === 'completed') expect(row.status).toBe('Active')
-    }
-  })
-
-  it('says never rather than a bogus time for a student with no attempts', () => {
-    const { rows } = data()
-    const untouched = toStudentRow(rows.find((r) => r.segment === 'not-started')!, NOW)
-    expect(untouched.lastActive).toBe('never')
-    expect(untouched.passRate).toBe(0)
-  })
-
-  it('flags only students who carry a misconception tag', () => {
-    for (const row of toStudentRows(data().rows, NOW)) {
-      expect(row.flagged).toBeGreaterThanOrEqual(0)
-      if (row.flagged > 0) expect(row.segment).not.toBe('not-started')
-    }
-  })
-})
-
-describe('toAdminStats', () => {
-  it('replaces the hardcoded admin numbers with derived ones', () => {
-    const { rows, summary, attemptsLast24h } = data()
-    const stats = toAdminStats({
-      enrolled: ENROLLMENTS,
-      rows: toStudentRows(rows, NOW),
-      attemptsLast24h,
-    })
-
-    expect(stats).toHaveLength(4)
-    expect(stats[0].value).toBe('42')
-    expect(stats[1].value).toBe(String(summary.completed))
-    expect(stats[2].value).toBe(String(summary.struggling))
-    expect(stats[3].hint).toContain(String(attemptsLast24h))
-  })
-
-  it('does not divide by zero on an empty class', () => {
-    const stats = toAdminStats({ enrolled: [], rows: [], attemptsLast24h: 0 })
-    expect(stats.every((s) => !s.value.includes('NaN'))).toBe(true)
-    expect(stats[3].value).toBe('0%')
   })
 })
