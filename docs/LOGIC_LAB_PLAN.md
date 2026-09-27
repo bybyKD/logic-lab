@@ -1461,7 +1461,7 @@ describing work that was not done, or omitting work that was.
 | 4 | Teacher loop | `[x]` | `e1fb2cf` |
 | 5 | Student loop | `[x]` | `ecc0182` |
 | 6 | Student dashboard | `[x]` | `7048cbe` |
-| 7 | Cleanup + docs | `[ ]` | — |
+| 7 | Cleanup + docs | `[x]` | `ff4e2d0` |
 
 ### Findings that shaped the plan
 - `Module.progress` / `.completed` / `.locked` are hardcoded on the content
